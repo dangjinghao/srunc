@@ -1,32 +1,27 @@
 # Releasing authu
 
-This project ships through several channels. New tags trigger CI which builds per-target binaries + the `.ipk`; crates.io publishing is one manual step. Homebrew/AUR/OpenWrt-feed channels live in separate repos.
+Everything ships out of this one repo. A tag push to `v*` triggers `release.yml`, which builds per-target binaries, the OpenWrt `.ipk`, and the Debian `.deb`, then uploads everything to a GitHub Release with `SHA256SUMS`. Publishing the Rust crates to crates.io is the only manual step.
 
-## Channels (current + planned)
+## Install channels
 
-| Channel | How users install | Status |
+| Channel | How users install | Built by |
 |---|---|---|
-| **GitHub Releases** | Download a per-target `authu-<target>.tar.gz` from the [Releases page](https://github.com/wangyihang/authu/releases) | ✅ Live (CI: `release.yml`) |
-| **`cargo binstall`** | `cargo binstall authu` (pulls the GitHub Release binary, no rebuild) | ✅ Live (metadata in `crates/srun-cli/Cargo.toml`) |
-| **`cargo install`** | `cargo install authu` (compiles from source) | 🟡 metadata ready, run `cargo publish` to ship |
-| **OpenWrt `.ipk`** | `opkg install luci-app-authu_*.ipk` (binary still from the tarball) | ✅ CI builds + attaches `.ipk` to each release |
-| **Debian / Ubuntu `.deb`** | `dpkg -i authu_*.deb` | ✅ CI builds for gnu targets via `cargo-deb`, attaches to release |
-| **Homebrew tap** | `brew install wangyihang/tap/authu` | 🟡 template at `packaging/homebrew/authu.rb`, push to a `homebrew-tap` repo |
-| **AUR** (`authu-bin`) | `yay -S authu-bin` | 🟡 template at `packaging/aur/`, push to AUR git remote |
-| **Scoop** | `scoop install wangyihang/authu` | 🟡 template at `packaging/scoop/authu.json`, push to a `scoop-bucket` repo |
-| **Own OpenWrt feed** | add `src-git authu https://github.com/wangyihang/authu;main` to `/etc/opkg/customfeeds.conf` | ⏳ requires hosting an opkg index |
-| **OpenWrt official `packages` feed** | comes bundled with stock OpenWrt | ⏳ PR to [openwrt/packages](https://github.com/openwrt/packages); needs `lang/rust` SDK build support |
+| GitHub Releases | Download a per-target `authu-<target>.tar.gz` from the [Releases page](https://github.com/WangYihang/authu/releases) | `release.yml` build matrix |
+| `cargo binstall` | `cargo binstall authu` (prebuilt binary, no compile) | `[package.metadata.binstall]` + the same tarballs |
+| `cargo install` | `cargo install authu` (compiles from source) | `cargo publish` after each tag |
+| OpenWrt `.ipk` | `opkg install luci-app-authu_*.ipk` | `openwrt/gh-action-sdk` in `release.yml` |
+| Debian / Ubuntu `.deb` | `dpkg -i authu_*.deb` | `cargo-deb` step in `release.yml` (gnu targets only) |
+
+That's all five paths. We deliberately don't maintain a Homebrew tap, AUR repo, or Scoop bucket — each would require its own external git remote, and `cargo binstall` plus the raw tarball already cover those users without spreading the project across multiple repos.
 
 ## Cutting a release
 
-1. Bump `workspace.package.version` in `Cargo.toml` to the new version (e.g. `0.2.0`).
-2. Bump the pinned versions in path-deps too — `srun = { path = "...", version = "0.2.0" }` and the same for `srun-core`. (cargo refuses to publish without explicit versions on path-deps.)
+1. Bump `workspace.package.version` in `Cargo.toml` to the new version (e.g. `0.3.0`).
+2. Bump the pinned versions in path-deps too — `srun-core = { path = "...", version = "0.3.0" }` and the same for `srun-client`. Cargo refuses to publish without explicit versions on path-deps.
 3. Update `packaging/openwrt/luci-app-authu/Makefile` `PKG_VERSION` to match.
-4. `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` — all green.
-5. Commit, tag `vX.Y.Z`, push tag — `release.yml` builds per-target binaries + the `.ipk` + `.deb` and attaches everything to the GitHub Release with `SHA256SUMS`.
-6. Run **`scripts/bump-packaging.sh X.Y.Z`** — pulls the canonical `SHA256SUMS` from that release and rewrites `packaging/{homebrew,aur,scoop}/` to the new version + SHAs. Commit + push that diff.
-7. Sync each updated file into its publishing repo (see [`packaging/README.md`](packaging/README.md) for the map).
-8. Publish the Rust crates (see below).
+4. `cargo fmt --all`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --all-targets --locked` — all green.
+5. Commit, tag `vX.Y.Z`, push tag. `release.yml` builds per-target binaries + the `.ipk` + the `.deb` and attaches everything to the GitHub Release with `SHA256SUMS`.
+6. Publish the Rust crates to crates.io (see below).
 
 ## Publishing to crates.io
 
@@ -38,7 +33,7 @@ Three crates are published:
 | [`srun-client`](https://crates.io/crates/srun-client) | sync HTTP client + auto-discovery | `srun-core` |
 | [`authu`](https://crates.io/crates/authu) | the CLI binary | `srun-core` + `srun-client` |
 
-> **Note on naming**: the workspace dir is `crates/srun/` but the published crate is `srun-client` because `srun` is already taken on crates.io (an unrelated sandbox tool). End users `cargo install authu` for the binary; library users add `srun-client = "0.1"`.
+> **Note on naming**: the workspace dir is `crates/srun/` but the published crate is `srun-client` because `srun` is already taken on crates.io (an unrelated sandbox tool). End users run `cargo install authu` for the binary; library users add `srun-client = "0.x"`.
 
 Dependencies must be published before dependents. The order is fixed:
 
@@ -49,52 +44,6 @@ cargo publish -p srun-client
 cargo publish -p authu
 ```
 
-You can dry-run any of these with `--dry-run` first (the network step is skipped and the package is just verified locally).
+Dry-run with `--dry-run` first; the network upload is skipped and the package is verified locally.
 
-A `cargo login <token>` is needed once; the token is created at <https://crates.io/me>.
-
-## Homebrew tap (planned)
-
-Create a `wangyihang/homebrew-tap` repo with `Formula/authu.rb`:
-
-```ruby
-class Authu < Formula
-  desc "Generic auto-configuring srun (深澜) campus-portal auth CLI"
-  homepage "https://github.com/wangyihang/authu"
-  version "0.1.0"
-  license "GPL-3.0-or-later"
-
-  on_macos do
-    on_arm do
-      url "https://github.com/wangyihang/authu/releases/download/v#{version}/authu-aarch64-apple-darwin.tar.gz"
-      sha256 "..."
-    end
-    on_intel do
-      url "https://github.com/wangyihang/authu/releases/download/v#{version}/authu-x86_64-apple-darwin.tar.gz"
-      sha256 "..."
-    end
-  end
-
-  on_linux do
-    on_arm { ... }
-    on_intel do
-      url "https://github.com/wangyihang/authu/releases/download/v#{version}/authu-x86_64-unknown-linux-musl.tar.gz"
-      sha256 "..."
-    end
-  end
-
-  def install
-    bin.install "authu"
-  end
-
-  test do
-    system "#{bin}/authu", "--version"
-  end
-end
-```
-
-Bump on each release by pasting the new SHAs from `dist/SHA256SUMS`.
-
-## AUR (planned)
-
-`PKGBUILD` referencing the release tarball — see [Arch Wiki: PKGBUILD](https://wiki.archlinux.org/title/PKGBUILD).
+`cargo login <token>` is needed once; the token is created at <https://crates.io/me>.
