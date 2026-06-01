@@ -1,0 +1,23 @@
+# authu config file (TOML).
+#
+# Search order:
+#   1. --config / -c <path>
+#   2. $AUTHU_CONFIG
+#   3. $XDG_CONFIG_HOME/authu/config.toml
+#   4. ~/.config/authu/config.toml
+#   5. ~/.authu.toml
+#
+# For service contexts also try /etc/authu/config.toml (pass -c explicitly).
+
+username = "your-username"
+password = "your-password"
+
+# All of the below are optional — most users only need username + password.
+
+# ipv6 = false          # use auth6.tsinghua portal
+# insecure = false      # use http:// instead of https://
+# timeout = 2           # HTTP timeout, seconds
+# ac_id = ""            # auto-detected for Tsinghua if omitted
+# host = ""             # override portal hostname (default: auth4.tsinghua.edu.cn)
+# ip = ""               # auth for a specific IP (proxy mode)
+# daemonize = false     # set true for systemd/init.d contexts

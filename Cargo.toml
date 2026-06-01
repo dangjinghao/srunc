@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/srun-core", "crates/srun-cli"]
+members = ["crates/srun-core", "crates/srun", "crates/srun-cli"]
 
 [workspace.package]
 version = "0.1.0"

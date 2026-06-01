@@ -58,6 +58,9 @@ jobs:
           cp "target/${{ matrix.target }}/release/$bin$ext" staging/"$dist"/
           cp LICENSE staging/"$dist"/ 2>/dev/null || true
           cp README.md staging/"$dist"/ 2>/dev/null || true
+          # Ship service files + config example with every archive so users
+          # can drop them straight onto routers / boxes.
+          cp -r docs staging/"$dist"/ 2>/dev/null || true
           cd staging
           if [ "${{ runner.os }}" = "Windows" ]; then
             7z a "$dist.zip" "$dist" >/dev/null

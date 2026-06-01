@@ -1,0 +1,17 @@
+# Templated unit — one instance per config file under /etc/authu/.
+# Enable per instance, e.g. for /etc/authu/v4.toml:
+#   systemctl enable --now authu@v4
+
+[Unit]
+Description=authu (%i) — srun campus-portal auth
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/authu -c /etc/authu/%i.toml login -k -D
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

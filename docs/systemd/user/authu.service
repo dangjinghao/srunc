@@ -1,0 +1,17 @@
+# Per-user unit. Drop into ~/.config/systemd/user/, then:
+#   systemctl --user enable --now authu
+#
+# Config file is auto-located at ~/.config/authu/config.toml.
+
+[Unit]
+Description=authu — srun campus-portal auth (user session)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/authu login -k -D
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target
