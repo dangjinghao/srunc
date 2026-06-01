@@ -1,0 +1,11 @@
+[package]
+name = "srun-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure, no_std-friendly core of the srun (深澜) campus-portal auth protocol: XEncode (XXTEA variant), the quirk base64, MD5/SHA1 helpers, and login-parameter assembly. Zero I/O, zero global state."
+
+[dependencies]
+sha1 = { version = "0.10", default-features = false }
+md-5 = { version = "0.10", default-features = false }

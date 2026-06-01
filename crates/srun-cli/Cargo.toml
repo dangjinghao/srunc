@@ -1,0 +1,15 @@
+[package]
+name = "srun-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Thin CLI over srun-core: compute portal parameters offline and self-test the crypto core. The networking shell (challenge/login/keep-alive) plugs in on top of this."
+
+[[bin]]
+name = "auth-thu-rs"
+path = "src/main.rs"
+
+[dependencies]
+srun-core = { path = "../srun-core" }
+clap = { version = "4", features = ["derive"] }

@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,       cross: false }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-musl,      cross: true  }
+          - { os: ubuntu-latest,  target: aarch64-unknown-linux-gnu,      cross: true  }
+          - { os: ubuntu-latest,  target: aarch64-unknown-linux-musl,     cross: true  }
+          - { os: ubuntu-latest,  target: armv7-unknown-linux-musleabihf, cross: true  }
+          - { os: ubuntu-latest,  target: arm-unknown-linux-musleabi,     cross: true  }
+          - { os: macos-latest,   target: x86_64-apple-darwin,            cross: false }
+          - { os: macos-latest,   target: aarch64-apple-darwin,           cross: false }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,         cross: false }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build (cargo)
+        if: ${{ !matrix.cross }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          bin=auth-thu-rs
+          ext=""
+          [ "${{ runner.os }}" = "Windows" ] && ext=".exe"
+          dist="auth-thu-rs-${{ matrix.target }}"
+          mkdir -p staging/"$dist"
+          cp "target/${{ matrix.target }}/release/$bin$ext" staging/"$dist"/
+          cp LICENSE staging/"$dist"/ 2>/dev/null || true
+          cp README.md staging/"$dist"/ 2>/dev/null || true
+          cd staging
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "$dist.zip" "$dist" >/dev/null
+          else
+            tar czf "$dist.tar.gz" "$dist"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            staging/*.tar.gz
+            staging/*.zip
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          shopt -s nullglob
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
