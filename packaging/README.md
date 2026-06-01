@@ -32,13 +32,38 @@ Other distribution channels live elsewhere (no per-distro file needed):
    - `aur/PKGBUILD` + `.SRCINFO` → AUR git remote
    - `scoop/authu.json` → `WangYihang/scoop-bucket` (`bucket/authu.json`)
 
-Most of step 3 can be automated with GitHub Actions:
+Step 3 is **automated** via [`.github/workflows/sync-packaging.yml`](../.github/workflows/sync-packaging.yml) — fires on `release: published` (i.e. after `release.yml` finishes uploading assets), re-runs the bump script against the just-published `SHA256SUMS`, then pushes each template to its destination repo in parallel. AUR side uses [`KSXGitHub/github-actions-deploy-aur`](https://github.com/KSXGitHub/github-actions-deploy-aur) which runs `makepkg --printsrcinfo` inside an Arch container to regenerate `.SRCINFO`.
 
-- Homebrew: [`dawidd6/action-homebrew-bump-formula`](https://github.com/dawidd6/action-homebrew-bump-formula)
-- AUR: [`KSXGitHub/github-actions-deploy-aur`](https://github.com/KSXGitHub/github-actions-deploy-aur)
-- Scoop: hand-roll a small action that commits to the bucket repo
+### One-time setup for the auto-sync workflow
 
-That's the v0.3.0+ work if/when manual syncing becomes annoying.
+You need three external repos and two GitHub secrets configured on this repo. Until both are set, the sync jobs will fail (the release itself is unaffected).
+
+**1. External repos** (create empty + initialize with a README):
+
+| Repo | What sync-packaging.yml expects |
+|---|---|
+| `WangYihang/homebrew-tap` | the formula lands at `Formula/authu.rb` |
+| `WangYihang/scoop-bucket` | the manifest lands at `bucket/authu.json` |
+| `aur@aur.archlinux.org/authu-bin.git` | created via [aur.archlinux.org](https://aur.archlinux.org) after registering an account + uploading an SSH pubkey under *My Account → Edit → SSH Public Key* |
+
+**2. Secrets** (repo *Settings → Secrets and variables → Actions → New repository secret*):
+
+| Secret name | Value |
+|---|---|
+| `PACKAGING_PAT` | a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new) with **Contents: Read and write** on both `homebrew-tap` and `scoop-bucket`; no other permissions needed |
+| `AUR_SSH_PRIVATE_KEY` | the private half of the SSH key whose pubkey you added to your AUR account. Generate with `ssh-keygen -t ed25519 -N "" -f aur_key`, copy `aur_key.pub` content to AUR, and paste the whole `aur_key` (including `-----BEGIN…-----` lines) into this secret |
+
+**3. User-facing install commands** once the three repos exist:
+
+```sh
+brew install WangYihang/tap/authu
+yay -S authu-bin                  # or paru / pacman wrapper of choice
+scoop bucket add wangyihang https://github.com/WangYihang/scoop-bucket && scoop install authu
+```
+
+### Manually triggering a sync
+
+If a sync job fails or you want to re-run for an existing tag: Actions tab → *Sync packaging* → *Run workflow* → enter version (no leading `v`). It re-runs the bump script against the canonical `SHA256SUMS` and pushes idempotently — no-op if the destination is already current.
 
 ## Adding a new distribution
 
