@@ -45,16 +45,17 @@ impl PortalParams {
     /// The (key, value) pairs to URL-encode, in a stable order. The imperative
     /// shell turns these into the actual query string.
     pub fn to_pairs(&self) -> alloc::vec::Vec<(&str, &str)> {
-        let mut pairs = alloc::vec::Vec::new();
-        pairs.push(("action", self.action.as_str()));
-        pairs.push(("username", self.username.as_str()));
-        pairs.push(("ac_id", self.ac_id.as_str()));
-        pairs.push(("ip", self.ip.as_str()));
-        pairs.push(("info", self.info.as_str()));
-        pairs.push(("chksum", self.chksum.as_str()));
-        pairs.push(("n", self.n.as_str()));
-        pairs.push(("type", self.type_.as_str()));
-        pairs.push(("double_stack", self.double_stack.as_str()));
+        let mut pairs = alloc::vec![
+            ("action", self.action.as_str()),
+            ("username", self.username.as_str()),
+            ("ac_id", self.ac_id.as_str()),
+            ("ip", self.ip.as_str()),
+            ("info", self.info.as_str()),
+            ("chksum", self.chksum.as_str()),
+            ("n", self.n.as_str()),
+            ("type", self.type_.as_str()),
+            ("double_stack", self.double_stack.as_str()),
+        ];
         if let Some(pw) = &self.password {
             pairs.push(("password", pw.as_str()));
         }
@@ -75,20 +76,46 @@ pub fn build_portal_params(
 
     let info_json = build_info_json(creds, ip, ac_id, logout);
     let mut info = String::from("{SRBX1}");
-    info.push_str(&quirk_base64(&xencode(info_json.as_bytes(), token.as_bytes())));
+    info.push_str(&quirk_base64(&xencode(
+        info_json.as_bytes(),
+        token.as_bytes(),
+    )));
 
     let chksum = if logout {
         sha1_hex(
             join(&[
-                token, creds.username, token, ac_id, token, ip, token, N, token, TYPE, token, &info,
+                token,
+                creds.username,
+                token,
+                ac_id,
+                token,
+                ip,
+                token,
+                N,
+                token,
+                TYPE,
+                token,
+                &info,
             ])
             .as_bytes(),
         )
     } else {
         sha1_hex(
             join(&[
-                token, creds.username, token, &hmd5, token, ac_id, token, ip, token, N, token,
-                TYPE, token, &info,
+                token,
+                creds.username,
+                token,
+                &hmd5,
+                token,
+                ac_id,
+                token,
+                ip,
+                token,
+                N,
+                token,
+                TYPE,
+                token,
+                &info,
             ])
             .as_bytes(),
         )

@@ -13,7 +13,10 @@ pub enum PortalError {
     AlreadyOnline,
     UserNotExist,
     /// A documented portal code with its (Chinese) message.
-    Known { code: String, message: &'static str },
+    Known {
+        code: String,
+        message: &'static str,
+    },
     /// An undocumented / unrecognized code.
     Unknown(String),
 }

@@ -1,8 +1,6 @@
 //! `authu` — srun (深澜) campus-portal CLI.
 //!
-//! Layout:
-//!   * `login` / `logout` / `status` / `keepalive` — the actual auth flow
-//!   * `params` / `selftest`                       — offline tooling
+//! Subcommands: `login` / `logout` / `status` / `keepalive`.
 //!
 //! The hard, side-effect-free crypto lives in `srun-core`; the HTTP client and
 //! Tsinghua-specific `ac_id` scraping live in `srun`. This binary is the thin
@@ -21,7 +19,7 @@ use clap::{Parser, Subcommand};
 use serde::Deserialize;
 
 use srun::{Client, Endpoints};
-use srun_core::{build_portal_params, quirk_base64, sha1_hex, xencode, Action, Credentials};
+use srun_core::Credentials;
 
 // ---------- CLI ----------
 
@@ -111,15 +109,6 @@ enum Cmd {
         #[arg(short, long, default_value_t = 2)]
         retry: u32,
     },
-    /// Compute portal login/logout parameters offline (debug helper).
-    Params {
-        #[arg(short = 'T', long, value_name = "TOKEN", help = "Challenge token (from get_challenge)")]
-        token: String,
-        #[arg(long)]
-        logout: bool,
-    },
-    /// Verify the crypto core against the Go reference vectors.
-    Selftest,
 }
 
 // ---------- config + settings ----------
@@ -170,8 +159,7 @@ fn locate_config(explicit: Option<&Path>) -> Option<PathBuf> {
     let home = std::env::var("HOME")
         .ok()
         .or_else(|| std::env::var("USERPROFILE").ok())?;
-    join_exists(&home, ".config/authu/config.toml")
-        .or_else(|| join_exists(&home, ".authu.toml"))
+    join_exists(&home, ".config/authu/config.toml").or_else(|| join_exists(&home, ".authu.toml"))
 }
 
 fn resolve(cli: &Cli) -> Result<Settings> {
@@ -179,8 +167,7 @@ fn resolve(cli: &Cli) -> Result<Settings> {
         Some(p) => {
             let text = fs::read_to_string(&p)
                 .with_context(|| format!("reading config file {}", p.display()))?;
-            toml::from_str(&text)
-                .with_context(|| format!("parsing config file {}", p.display()))?
+            toml::from_str(&text).with_context(|| format!("parsing config file {}", p.display()))?
         }
         None => ConfigFile::default(),
     };
@@ -315,7 +302,10 @@ fn cmd_login(
 
     let client = Client::new(make_endpoints(&s), s.timeout);
     let ac_id = resolve_ac_id(&client, &s);
-    let creds = Credentials { username: &s.username, password: &s.password };
+    let creds = Credentials {
+        username: &s.username,
+        password: &s.password,
+    };
 
     client
         .login(&creds, &ac_id, &s.ip)
@@ -379,76 +369,24 @@ fn cmd_keepalive(cli: &Cli, campus_only: bool, interval: u64, retry: u32) -> Res
     run_keepalive(stop, interval, retry, s.ipv6, campus_only, s.daemonize)
 }
 
-fn cmd_params(cli: &Cli, token: &str, logout: bool) -> Result<()> {
-    let s = resolve(cli)?;
-    if s.username.is_empty() {
-        bail!("--username required for params");
-    }
-    let creds = Credentials { username: &s.username, password: &s.password };
-    let action = if logout { Action::Logout } else { Action::Login };
-    let ac_id = s.ac_id.as_deref().unwrap_or("1");
-    let p = build_portal_params(&creds, token, action, &s.ip, ac_id);
-    println!("action       = {}", p.action);
-    println!("username     = {}", p.username);
-    if let Some(pw) = &p.password {
-        println!("password     = {pw}");
-    }
-    println!("ac_id        = {}", p.ac_id);
-    println!("ip           = {}", p.ip);
-    println!("n            = {}", p.n);
-    println!("type         = {}", p.type_);
-    println!("double_stack = {}", p.double_stack);
-    println!("info         = {}", p.info);
-    println!("chksum       = {}", p.chksum);
-    Ok(())
-}
-
-fn cmd_selftest() -> bool {
-    let mut ok = true;
-    let mut check = |name: &str, got: String, want: &str| {
-        if got != want {
-            ok = false;
-            eprintln!("  {name}: got {got:?}, want {want:?}");
-        }
-    };
-    let tok = "aa0edd0fff7dd9f1f0ae4e981ec0114c7b0bf6f67c4895bed4f4ac634e97ecf2";
-    check("quirk_base64", quirk_base64(b"567"), "0FZ7");
-    check("xencode", quirk_base64(&xencode(b"1", tok.as_bytes())), "NmsaR0fCm5H=");
-    check("sha1", sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
-    let p = build_portal_params(
-        &Credentials { username: "hello", password: "pass" },
-        "32f23b9c2229fd034f6d5160d8b4536496af550efc45113635689d2d8f12ffad",
-        Action::Login,
-        "",
-        "1",
-    );
-    check("chksum", p.chksum, "8fd747a5b37c63f695b23fa2bd0339b1a961aa49");
-    ok
-}
-
 // ---------- entry ----------
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.cmd {
-        Cmd::Login { keepalive, campus_only, interval, retry } => {
-            cmd_login(&cli, *keepalive, *campus_only, *interval, *retry)
-        }
+        Cmd::Login {
+            keepalive,
+            campus_only,
+            interval,
+            retry,
+        } => cmd_login(&cli, *keepalive, *campus_only, *interval, *retry),
         Cmd::Logout => cmd_logout(&cli),
         Cmd::Status => cmd_status(&cli),
-        Cmd::Keepalive { campus_only, interval, retry } => {
-            cmd_keepalive(&cli, *campus_only, *interval, *retry)
-        }
-        Cmd::Params { token, logout } => cmd_params(&cli, token, *logout),
-        Cmd::Selftest => {
-            if cmd_selftest() {
-                println!("selftest: OK");
-                Ok(())
-            } else {
-                eprintln!("selftest: FAILED");
-                return ExitCode::FAILURE;
-            }
-        }
+        Cmd::Keepalive {
+            campus_only,
+            interval,
+            retry,
+        } => cmd_keepalive(&cli, *campus_only, *interval, *retry),
     };
 
     match result {

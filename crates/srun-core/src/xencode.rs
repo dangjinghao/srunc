@@ -5,7 +5,7 @@
 //! plaintext byte-length appended as the final word, and serializes the result
 //! back to little-endian bytes without truncation.
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 const DELTA: u32 = 0x9E37_79B9;
 
@@ -45,8 +45,7 @@ pub fn xencode(data: &[u8], key: &[u8]) -> Vec<u8> {
 /// Pack bytes into little-endian `u32` words; optionally append the byte length.
 fn to_words(a: &[u8], append_len: bool) -> Vec<u32> {
     let c = a.len();
-    let mut v: Vec<u32> = Vec::new();
-    v.resize((c + 3) / 4, 0);
+    let mut v: Vec<u32> = vec![0; c.div_ceil(4)];
     let mut i = 0usize;
     while i < c {
         let mut t: u32 = 0;
@@ -66,8 +65,7 @@ fn to_words(a: &[u8], append_len: bool) -> Vec<u32> {
 
 /// Serialize `u32` words back to little-endian bytes (no truncation).
 fn to_bytes(a: &[u32]) -> Vec<u8> {
-    let mut out: Vec<u8> = Vec::new();
-    out.reserve(a.len() * 4);
+    let mut out: Vec<u8> = Vec::with_capacity(a.len() * 4);
     for &w in a {
         out.push((w & 0xff) as u8);
         out.push(((w >> 8) & 0xff) as u8);

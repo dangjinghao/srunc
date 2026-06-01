@@ -102,11 +102,15 @@ Why it is shaped this way:
 ## Build / test / run from source
 
 ```sh
-cargo test                              # 5 vector + 8 unit = 13 tests
-cargo build --release                   # ~2.2 MB binary at target/release/authu
-cargo run -- selftest                   # verify the crypto core inline
-cargo run -- login -k                   # if you have a config
+cargo fmt --all -- --check                              # formatting gate
+cargo clippy --all-targets --locked -- -D warnings      # lint gate
+cargo test --locked                                     # 5 vector + 8 unit = 13 tests
+cargo build --release --locked                          # ~2.2 MB at target/release/authu
+cargo run -- login -k                                   # if you have a config
 ```
+
+CI on every push / PR runs the first three commands; see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Cross-platform distribution
 

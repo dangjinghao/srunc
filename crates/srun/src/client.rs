@@ -58,11 +58,7 @@ impl Client {
     pub fn challenge(&self, username: &str, ip: &str) -> Result<String, Error> {
         let raw = self.get_jsonp(
             &self.endpoints.challenge,
-            &[
-                ("username", username),
-                ("ip", ip),
-                ("double_stack", "1"),
-            ],
+            &[("username", username), ("ip", ip), ("double_stack", "1")],
         )?;
         let r: ChallengeResp = serde_json::from_str(&raw)?;
         if r.res != "ok" {
@@ -81,7 +77,10 @@ impl Client {
     pub fn logout(&self, username: &str, ac_id: &str, ip: &str) -> Result<(), Error> {
         let token = self.challenge(username, ip)?;
         // Logout ignores the password field; pass an empty one.
-        let creds = Credentials { username, password: "" };
+        let creds = Credentials {
+            username,
+            password: "",
+        };
         let p = build_portal_params(&creds, &token, Action::Logout, ip, ac_id);
         self.submit(&p)
     }

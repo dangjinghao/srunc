@@ -6,7 +6,9 @@
 //! produced by the Go reference for the inputs documented below (see
 //! `the project README` for the one-line regeneration recipe).
 
-use srun_core::{build_portal_params, md5_hex, quirk_base64, sha1_hex, xencode, Action, Credentials};
+use srun_core::{
+    build_portal_params, md5_hex, quirk_base64, sha1_hex, xencode, Action, Credentials,
+};
 
 const TOKEN: &str = "aa0edd0fff7dd9f1f0ae4e981ec0114c7b0bf6f67c4895bed4f4ac634e97ecf2";
 
@@ -28,7 +30,10 @@ fn quirk_base64_matches_go() {
 fn xencode_matches_go() {
     let z = "0000000000000000000000000000000000000000000000000000000000000000";
     assert_eq!(quirk_base64(&xencode(b"", TOKEN.as_bytes())), "");
-    assert_eq!(quirk_base64(&xencode(b"1", TOKEN.as_bytes())), "NmsaR0fCm5H=");
+    assert_eq!(
+        quirk_base64(&xencode(b"1", TOKEN.as_bytes())),
+        "NmsaR0fCm5H="
+    );
     assert_eq!(
         quirk_base64(&xencode(b"agfawegwq12834eqrge", TOKEN.as_bytes())),
         "DAxHygvRUjlDyJjmvChIzuavMsjy7B9L"
@@ -55,12 +60,18 @@ fn digests_match_go() {
 //   token="32f23b9c2229fd034f6d5160d8b4536496af550efc45113635689d2d8f12ffad"
 #[test]
 fn build_portal_params_login_matches_go() {
-    let creds = Credentials { username: "hello", password: "pass" };
+    let creds = Credentials {
+        username: "hello",
+        password: "pass",
+    };
     let token = "32f23b9c2229fd034f6d5160d8b4536496af550efc45113635689d2d8f12ffad";
     let p = build_portal_params(&creds, token, Action::Login, "", "1");
 
     assert_eq!(p.action, "login");
-    assert_eq!(p.password.as_deref(), Some("{MD5}1a1dc91c907325c69271ddf0c944bc72"));
+    assert_eq!(
+        p.password.as_deref(),
+        Some("{MD5}1a1dc91c907325c69271ddf0c944bc72")
+    );
     assert_eq!(
         p.info,
         "{SRBX1}Btl+2HhG5Mr1GhsSBpa7Izl9M2U8Y846GmMzaSJ+xDYgR1GVXZRn67zxbQkaTXHtwBJ0E6H+ChJMyb9BM+qwni/EWJoXx0aMXpdUikuAjYmEKsHG"
@@ -70,7 +81,10 @@ fn build_portal_params_login_matches_go() {
 
 #[test]
 fn logout_omits_password() {
-    let creds = Credentials { username: "hello", password: "pass" };
+    let creds = Credentials {
+        username: "hello",
+        password: "pass",
+    };
     let p = build_portal_params(&creds, TOKEN, Action::Logout, "", "1");
     assert_eq!(p.action, "logout");
     assert!(p.password.is_none());
