@@ -3,10 +3,13 @@ resolver = "2"
 members = ["crates/srun-core", "crates/srun", "crates/srun-cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/wangyihang/authu"
+homepage = "https://github.com/wangyihang/authu"
+authors = ["Yihang Wang <wangyihanger@gmail.com>"]
+rust-version = "1.74"
 
 # Optimize the release artifacts for size — these binaries are meant to ship to
 # routers (OpenWRT) and other flash-constrained boxes.

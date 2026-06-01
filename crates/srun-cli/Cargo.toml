@@ -1,22 +1,40 @@
 [package]
-name = "srun-cli"
+name = "authu"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The `authu` command-line interface."
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+readme = "../../README.md"
+description = "Generic, auto-configuring srun (深澜) campus-portal auth CLI. Works on any srun deployment — host and ac_id are auto-discovered from the captive-portal redirect. Static musl binary suitable for OpenWrt routers."
+keywords = ["srun", "captive-portal", "tsinghua", "cli", "campus-network"]
+categories = ["command-line-utilities", "network-programming", "authentication"]
 
 [[bin]]
 name = "authu"
 path = "src/main.rs"
 
 [dependencies]
-srun-core = { path = "../srun-core" }
-srun = { path = "../srun" }
-clap = { version = "4", features = ["derive"] }
+srun-core = { path = "../srun-core", version = "0.2.0" }
+srun-client = { path = "../srun", version = "0.2.0" }
+clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage"] }
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
+serde_json = "1"
+basic-toml = "0.1"
 ctrlc = { version = "3", features = ["termination"] }
 rpassword = "7"
 anyhow = "1"
 ureq = "2"
+log = "0.4"
+# Strip features we don't use: humantime (jiff timestamp dep), regex
+# (RUST_LOG regex filters — we only need plain module-prefix matches),
+# unstable-kv. Keeps the binary small.
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+httpmock = "0.8"

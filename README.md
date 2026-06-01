@@ -13,23 +13,33 @@ licensed under the same GPLv3.
 ## Quick start
 
 ```sh
-# 1. Grab the binary from the latest release, or build from source (below).
-# 2. Write a config file (see docs/config.example.toml):
+# 1. Install. Pick one:
+cargo install authu                              # from crates.io
+# or grab a per-target musl binary from the latest GitHub Release,
+# or `cargo build --release` from source.
+
+# 2. Write a config file — username + password is enough; host and ac_id
+#    are auto-discovered from the captive-portal redirect.
 mkdir -p ~/.config/authu
 cat > ~/.config/authu/config.toml <<'EOF'
 username = "your-tunet-account"
 password = "your-tunet-password"
 EOF
+
 # 3. Use it.
-authu login              # one-shot auth
-authu status             # check whether we are online
+authu login              # one-shot auth (auto-discovers host + ac_id)
+authu status             # human-readable status
+authu status --json      # machine-readable {"online":bool,"username":...,"ip":...}
 authu login -k           # auth + keep the session alive (Ctrl-C to stop)
 authu logout
+authu -v status          # bump verbosity to see protocol-level debug logs
 ```
+
+On OpenWrt: install [`luci-app-authu`](packaging/openwrt/) (the `.ipk` is attached to each GitHub Release) for a web UI under *Services › authu*.
 
 Anything in the config can be overridden on the command line — `--ipv6/-6`,
 `--ac-id`, `--host`, `--insecure`, `--timeout/-t`, `--username/-u`,
-`--password/-p`, `--config/-c`, etc. Run `authu --help` for the full surface.
+`--password/-p`, `--config/-c`, `--json`, `-v/-q`. Run `authu --help` for the full surface.
 
 ## Configuration
 
@@ -67,7 +77,7 @@ replaceable I/O layer.
 
 ```
 crates/
-├── srun-core/        PURE, no_std, zero I/O, zero globals
+├── srun-core/        PURE, no_std, zero I/O, zero globals       (crates.io: srun-core)
 │   ├── src/xencode.rs    XEncode — srun's XXTEA-variant block cipher
 │   ├── src/base64.rs     QuirkBase64Encode (custom alphabet)
 │   ├── src/digest.rs     MD5 / SHA1 (RustCrypto)
@@ -75,14 +85,16 @@ crates/
 │   ├── src/error.rs      typed PortalError + code→message table
 │   └── tests/vectors.rs  golden vectors pinned to the Go reference
 │
-├── srun/             I/O shell (std)
+├── srun/             I/O shell (std)                            (crates.io: srun-client)
 │   ├── src/client.rs     ureq-based HTTP client speaking the srun protocol
 │   ├── src/endpoints.rs  per-host URL set (generic over deployment)
+│   ├── src/discover.rs   captive-redirect parsing → {host, ac_id}, DNS-free
+│   ├── src/gateway.rs    default-gateway discovery via /proc/net/route
 │   ├── src/models.rs     typed serde responses
 │   ├── src/jsonp.rs      strip `callback(...)` JSONP wrappers
-│   └── src/tsinghua.rs   site adapter (ac_id HTML scraping)
+│   └── src/tsinghua.rs   legacy DNS-based ac_id detection (fallback)
 │
-└── srun-cli/         this binary (`authu`)
+└── srun-cli/         this binary (`authu`)                      (crates.io: authu)
 ```
 
 Why it is shaped this way:
@@ -90,13 +102,13 @@ Why it is shaped this way:
 - **The crypto is provably equivalent to Go.** `srun-core/tests/vectors.rs`
   pins XEncode / QuirkBase64Encode / build_portal_params byte-for-byte against
   the upstream Go output.
-- **No global mutable state.** Timeout and HTTP agent live on `srun::Client`.
+- **No global mutable state.** Timeout and HTTP agent live on `srun_client::Client`.
 - **Typed errors / model** — `PortalError::from_code` → `WrongPassword` /
   `AlreadyOnline` / … instead of `map[string]interface{}` + string compares.
 - **`no_std` core** so it can target the smallest possible footprint.
 - **Sync I/O via `ureq` + `rustls`, no tokio** — a single keep-alive timer
   doesn't justify an async runtime.
-- **Site quirks isolated** in `srun::tsinghua` so the protocol code stays
+- **Site quirks isolated** in `srun_client::tsinghua` so the protocol code stays
   portable to other srun deployments.
 
 ## Build / test / run from source

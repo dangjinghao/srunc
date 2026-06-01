@@ -1,0 +1,29 @@
+{
+	"admin/services/authu": {
+		"title": "authu",
+		"order": 80,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-authu" ],
+			"uci": { "authu": true }
+		}
+	},
+	"admin/services/authu/overview": {
+		"title": "Overview",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "authu/overview"
+		}
+	},
+	"admin/services/authu/settings": {
+		"title": "Settings",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "authu/settings"
+		}
+	}
+}

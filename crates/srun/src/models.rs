@@ -3,9 +3,9 @@
 //! We only deserialize the fields we actually consume — the portal is generous
 //! with extras (`srun_ver`, `sysver`, `ploy_msg`, …) that we don't need.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct Status {
     pub online: bool,
     pub username: Option<String>,

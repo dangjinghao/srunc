@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use log::debug;
 use ureq::{Agent, AgentBuilder};
 
 use srun_core::{build_portal_params, Action, Credentials, PortalError, PortalParams};
@@ -38,6 +39,7 @@ impl Client {
 
     /// Are we online? Returns the user_name and public IP if so.
     pub fn status(&self, ac_id: &str) -> Result<Status, Error> {
+        debug!("status: querying online_check (ac_id={ac_id})");
         let url = format!(
             "{}?{}",
             self.endpoints.online_check,
@@ -45,6 +47,7 @@ impl Client {
         );
         let body = self.agent.get(&url).call()?.into_string()?;
         let ip = extract_ip(&body).ok_or(Error::NoIpInResponse)?;
+        debug!("status: portal sees us at {ip}");
 
         let raw = self.get_jsonp(&self.endpoints.user_info, &[("ip", &ip)])?;
         let info: UserInfoResp = serde_json::from_str(&raw)?;
@@ -56,6 +59,7 @@ impl Client {
     }
 
     pub fn challenge(&self, username: &str, ip: &str) -> Result<String, Error> {
+        debug!("challenge: requesting token for {username} (ip={ip})");
         let raw = self.get_jsonp(
             &self.endpoints.challenge,
             &[("username", username), ("ip", ip), ("double_stack", "1")],
@@ -70,12 +74,14 @@ impl Client {
 
     pub fn login(&self, creds: &Credentials, ac_id: &str, ip: &str) -> Result<(), Error> {
         let token = self.challenge(creds.username, ip)?;
+        debug!("login: submitting credentials (ac_id={ac_id})");
         let p = build_portal_params(creds, &token, Action::Login, ip, ac_id);
         self.submit(&p)
     }
 
     pub fn logout(&self, username: &str, ac_id: &str, ip: &str) -> Result<(), Error> {
         let token = self.challenge(username, ip)?;
+        debug!("logout: submitting (ac_id={ac_id})");
         // Logout ignores the password field; pass an empty one.
         let creds = Credentials {
             username,

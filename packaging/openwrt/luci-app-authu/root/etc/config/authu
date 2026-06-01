@@ -1,0 +1,28 @@
+# authu — srun (深澜) captive-portal auth.
+#
+# Most users only need username + password. The portal `host` and `ac_id` are
+# auto-discovered from the captive redirect (DNS-free, by probing the default
+# gateway), so leave them blank unless you specifically need to override.
+#
+# To run more than one instance (e.g. v4 + v6, or two accounts), add more
+# `config authu '<name>'` sections — the init script spawns one procd instance
+# per enabled section.
+
+config globals 'globals'
+	option enabled '1'
+
+config authu 'default'
+	option enabled '1'
+	option username ''
+	option password ''
+	# --- overrides (leave blank for auto-discovery) ---
+	# option host ''
+	# option ac_id ''
+	# option ipv6 '0'           # use IPv6 portal (only affects Tsinghua fallback)
+	# option insecure '0'       # http:// instead of https://
+	# option timeout '2'        # HTTP request timeout, seconds
+	# --- keepalive (login -k) ---
+	option keepalive '1'
+	option campus_only '0'      # probe in-campus URL for keepalive (avoids billing)
+	option interval '3'
+	option retry '2'
