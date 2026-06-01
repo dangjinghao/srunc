@@ -7,7 +7,7 @@ repository.workspace = true
 description = "Thin CLI over srun-core: compute portal parameters offline and self-test the crypto core. The networking shell (challenge/login/keep-alive) plugs in on top of this."
 
 [[bin]]
-name = "auth-thu-rs"
+name = "authu"
 path = "src/main.rs"
 
 [dependencies]

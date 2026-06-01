@@ -53,12 +53,12 @@ runtime) with `serde` response structs and `context`-style cancellation.
 
 ```sh
 cargo test                      # runs the golden-vector suite
-cargo build --release           # ~0.5 MB binary
+cargo build --release           # ~0.5 MB binary; produces target/release/authu
 cargo run -p srun-cli -- selftest
 cargo run -p srun-cli -- params -u <user> -p <pass> -t <challenge-token> --ac-id 1
 ```
 
-Reference numbers: release binary ~**506 KB** (glibc) /
+Reference numbers: release binary ~**509 KB** (glibc) /
 ~**593 KB statically linked** for `x86_64-unknown-linux-musl`.
 
 ## Cross-platform distribution

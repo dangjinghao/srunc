@@ -50,10 +50,10 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          bin=auth-thu-rs
+          bin=authu
           ext=""
           [ "${{ runner.os }}" = "Windows" ] && ext=".exe"
-          dist="auth-thu-rs-${{ matrix.target }}"
+          dist="authu-${{ matrix.target }}"
           mkdir -p staging/"$dist"
           cp "target/${{ matrix.target }}/release/$bin$ext" staging/"$dist"/
           cp LICENSE staging/"$dist"/ 2>/dev/null || true
