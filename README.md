@@ -7,10 +7,11 @@ Small static-binary authenticator for the **srun** (深澜) captive portal used 
 ## Install
 
 ```sh
-cargo install authu
+cargo binstall authu      # prebuilt binary from the latest release (fast)
+cargo install authu       # compile from source
 ```
 
-Or grab a per-target binary from the [latest Release](https://github.com/WangYihang/authu/releases). On OpenWrt, install [`luci-app-authu`](packaging/openwrt/) for a web UI under *Services › authu*.
+Or grab a per-target binary from the [latest Release](https://github.com/WangYihang/authu/releases) directly. On OpenWrt, install [`luci-app-authu`](packaging/openwrt/) for a web UI under *Services › authu*. Per-distro packages: see [`packaging/`](packaging/).
 
 ## Configure
 

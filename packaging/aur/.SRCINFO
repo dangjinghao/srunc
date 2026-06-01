@@ -1,0 +1,22 @@
+pkgbase = authu-bin
+	pkgdesc = srun (深澜) campus-portal auth CLI — auto-discovers host + ac_id
+	pkgver = 0.2.0
+	pkgrel = 1
+	url = https://github.com/WangYihang/authu
+	arch = x86_64
+	arch = aarch64
+	arch = armv7h
+	arch = arm
+	license = GPL-3.0-or-later
+	provides = authu
+	conflicts = authu
+	source_x86_64 = authu-0.2.0-x86_64.tar.gz::https://github.com/WangYihang/authu/releases/download/v0.2.0/authu-x86_64-unknown-linux-musl.tar.gz
+	sha256sums_x86_64 = 3bd467f929526ffac86353b7ca3c7ed0eb8c499a540ccc4312178c12ae029820
+	source_aarch64 = authu-0.2.0-aarch64.tar.gz::https://github.com/WangYihang/authu/releases/download/v0.2.0/authu-aarch64-unknown-linux-musl.tar.gz
+	sha256sums_aarch64 = 2b768a12eb64d3a89a45574b9401d79f39ba80d5a73f7ac1e9c61fae2b97d119
+	source_armv7h = authu-0.2.0-armv7h.tar.gz::https://github.com/WangYihang/authu/releases/download/v0.2.0/authu-armv7-unknown-linux-musleabihf.tar.gz
+	sha256sums_armv7h = eec4c2fa52bb7cbe2184b3afe19b8de89b330b7d6ad496af6ece50222cd5bef8
+	source_arm = authu-0.2.0-arm.tar.gz::https://github.com/WangYihang/authu/releases/download/v0.2.0/authu-arm-unknown-linux-musleabi.tar.gz
+	sha256sums_arm = c54b1b55ec413d2128f0f19a39c04f3e85c3bdc957a18d2c21cb20dfbfb79369
+
+pkgname = authu-bin

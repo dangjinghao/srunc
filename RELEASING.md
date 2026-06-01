@@ -7,12 +7,15 @@ This project ships through several channels. New tags trigger CI which builds pe
 | Channel | How users install | Status |
 |---|---|---|
 | **GitHub Releases** | Download a per-target `authu-<target>.tar.gz` from the [Releases page](https://github.com/wangyihang/authu/releases) | ✅ Live (CI: `release.yml`) |
-| **crates.io** | `cargo install authu` | 🟡 metadata ready, run `cargo publish` to ship |
-| **OpenWrt** `.ipk` | `opkg install luci-app-authu_*.ipk` (binary still from the tarball) | ✅ CI builds + attaches `.ipk` to each release |
-| **Homebrew tap** | `brew install wangyihang/tap/authu` | ⏳ requires a separate `homebrew-tap` repo (formula pinned to release tarball SHAs) |
-| **AUR** | `yay -S authu` (or similar) | ⏳ PKGBUILD pointing at GitHub release binary |
-| **Own OpenWrt feed** | add `src-git authu https://github.com/wangyihang/authu;main` to `/etc/opkg/customfeeds.conf`, then `opkg update && opkg install luci-app-authu` | ⏳ requires `packaging/openwrt/Packages` index hosted somewhere |
-| **OpenWrt official `packages` feed** | comes bundled with stock OpenWrt | ⏳ would require submitting a PR to [openwrt/packages](https://github.com/openwrt/packages); the Rust binary side needs `lang/rust` SDK build support |
+| **`cargo binstall`** | `cargo binstall authu` (pulls the GitHub Release binary, no rebuild) | ✅ Live (metadata in `crates/srun-cli/Cargo.toml`) |
+| **`cargo install`** | `cargo install authu` (compiles from source) | 🟡 metadata ready, run `cargo publish` to ship |
+| **OpenWrt `.ipk`** | `opkg install luci-app-authu_*.ipk` (binary still from the tarball) | ✅ CI builds + attaches `.ipk` to each release |
+| **Debian / Ubuntu `.deb`** | `dpkg -i authu_*.deb` | ✅ CI builds for gnu targets via `cargo-deb`, attaches to release |
+| **Homebrew tap** | `brew install wangyihang/tap/authu` | 🟡 template at `packaging/homebrew/authu.rb`, push to a `homebrew-tap` repo |
+| **AUR** (`authu-bin`) | `yay -S authu-bin` | 🟡 template at `packaging/aur/`, push to AUR git remote |
+| **Scoop** | `scoop install wangyihang/authu` | 🟡 template at `packaging/scoop/authu.json`, push to a `scoop-bucket` repo |
+| **Own OpenWrt feed** | add `src-git authu https://github.com/wangyihang/authu;main` to `/etc/opkg/customfeeds.conf` | ⏳ requires hosting an opkg index |
+| **OpenWrt official `packages` feed** | comes bundled with stock OpenWrt | ⏳ PR to [openwrt/packages](https://github.com/openwrt/packages); needs `lang/rust` SDK build support |
 
 ## Cutting a release
 
@@ -20,8 +23,10 @@ This project ships through several channels. New tags trigger CI which builds pe
 2. Bump the pinned versions in path-deps too — `srun = { path = "...", version = "0.2.0" }` and the same for `srun-core`. (cargo refuses to publish without explicit versions on path-deps.)
 3. Update `packaging/openwrt/luci-app-authu/Makefile` `PKG_VERSION` to match.
 4. `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `cargo test --all-targets` — all green.
-5. Commit, tag `vX.Y.Z`, push tag — `release.yml` builds per-target binaries + the `.ipk` and attaches everything to the GitHub Release.
-6. Publish the Rust crates (see below).
+5. Commit, tag `vX.Y.Z`, push tag — `release.yml` builds per-target binaries + the `.ipk` + `.deb` and attaches everything to the GitHub Release with `SHA256SUMS`.
+6. Run **`scripts/bump-packaging.sh X.Y.Z`** — pulls the canonical `SHA256SUMS` from that release and rewrites `packaging/{homebrew,aur,scoop}/` to the new version + SHAs. Commit + push that diff.
+7. Sync each updated file into its publishing repo (see [`packaging/README.md`](packaging/README.md) for the map).
+8. Publish the Rust crates (see below).
 
 ## Publishing to crates.io
 

@@ -59,6 +59,18 @@ jobs:
         if: contains(matrix.target, '-musl')
         run: upx --best --lzma "target/${{ matrix.target }}/release/authu"
 
+      # Build a Debian .deb for the glibc Linux targets — .deb is for
+      # Debian/Ubuntu which use glibc, not musl.
+      - name: Install cargo-deb
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+
+      - name: Build .deb
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cargo deb -p authu --target ${{ matrix.target }} --no-build --no-strip
+
       - name: Package
         shell: bash
         run: |
@@ -80,12 +92,19 @@ jobs:
             tar czf "$dist.tar.gz" "$dist"
           fi
 
+      # Pick up the .deb produced by cargo-deb (only present on gnu targets).
+      - name: Stage .deb
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: find target/${{ matrix.target }}/debian -name '*.deb' -exec cp {} staging/ \;
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
           path: |
             staging/*.tar.gz
             staging/*.zip
+            staging/*.deb
 
   ipk:
     name: luci-app-authu (.ipk)
@@ -133,7 +152,7 @@ jobs:
         run: |
           cd dist
           shopt -s nullglob
-          sha256sum *.tar.gz *.zip *.ipk > SHA256SUMS
+          sha256sum *.tar.gz *.zip *.ipk *.deb > SHA256SUMS
           cat SHA256SUMS
 
       - uses: softprops/action-gh-release@v2

@@ -1,0 +1,49 @@
+# Maintainer: Yihang Wang <wangyihanger at gmail dot com>
+#
+# `authu-bin` — prebuilt static-musl binary fetched from the GitHub Release.
+# This file lives in this repo as the canonical template; the published
+# PKGBUILD lives in the AUR git repo at ssh://aur@aur.archlinux.org/authu-bin.git.
+# Run scripts/bump-packaging.sh <version> after each release to refresh
+# pkgver + sha256sums, then sync the file + regenerated .SRCINFO into the
+# AUR repo.
+
+pkgname=authu-bin
+_pkgname=authu
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="srun (深澜) campus-portal auth CLI — auto-discovers host + ac_id"
+arch=('x86_64' 'aarch64' 'armv7h' 'arm')
+url="https://github.com/WangYihang/authu"
+license=('GPL-3.0-or-later')
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+
+source_x86_64=("${_pkgname}-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/${_pkgname}-x86_64-unknown-linux-musl.tar.gz")
+sha256sums_x86_64=('3bd467f929526ffac86353b7ca3c7ed0eb8c499a540ccc4312178c12ae029820')
+
+source_aarch64=("${_pkgname}-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/${_pkgname}-aarch64-unknown-linux-musl.tar.gz")
+sha256sums_aarch64=('2b768a12eb64d3a89a45574b9401d79f39ba80d5a73f7ac1e9c61fae2b97d119')
+
+source_armv7h=("${_pkgname}-${pkgver}-armv7h.tar.gz::${url}/releases/download/v${pkgver}/${_pkgname}-armv7-unknown-linux-musleabihf.tar.gz")
+sha256sums_armv7h=('eec4c2fa52bb7cbe2184b3afe19b8de89b330b7d6ad496af6ece50222cd5bef8')
+
+source_arm=("${_pkgname}-${pkgver}-arm.tar.gz::${url}/releases/download/v${pkgver}/${_pkgname}-arm-unknown-linux-musleabi.tar.gz")
+sha256sums_arm=('c54b1b55ec413d2128f0f19a39c04f3e85c3bdc957a18d2c21cb20dfbfb79369')
+
+package() {
+    case "$CARCH" in
+        x86_64)  _target="x86_64-unknown-linux-musl" ;;
+        aarch64) _target="aarch64-unknown-linux-musl" ;;
+        armv7h)  _target="armv7-unknown-linux-musleabihf" ;;
+        arm)     _target="arm-unknown-linux-musleabi" ;;
+    esac
+    cd "${srcdir}/${_pkgname}-${_target}"
+
+    install -Dm755 authu                                "${pkgdir}/usr/bin/authu"
+    install -Dm644 LICENSE                              "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+    install -Dm644 README.md                            "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+    install -Dm644 docs/config.example.toml             "${pkgdir}/usr/share/doc/${pkgname}/config.example.toml"
+    install -Dm644 docs/systemd/system/authu.service    "${pkgdir}/usr/lib/systemd/system/authu.service"
+    install -Dm644 docs/systemd/system/authu@.service   "${pkgdir}/usr/lib/systemd/system/authu@.service"
+    install -Dm644 docs/systemd/user/authu.service      "${pkgdir}/usr/lib/systemd/user/authu.service"
+}

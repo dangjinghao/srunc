@@ -16,6 +16,40 @@ categories = ["command-line-utilities", "network-programming", "authentication"]
 name = "authu"
 path = "src/main.rs"
 
+# Lets `cargo binstall authu` fetch the prebuilt binary from our GitHub Release
+# instead of compiling from source. The defaults assume archives named
+# `{name}-v{version}-{target}.{ext}`, but we drop the `v{version}` — override.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.{ archive-suffix }"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+
+# Debian package, produced by `cargo deb`. Triggered from CI for x86_64-gnu
+# and aarch64-gnu targets (musl binaries aren't .deb-friendly).
+[package.metadata.deb]
+name = "authu"
+maintainer = "Yihang Wang <wangyihanger@gmail.com>"
+copyright = "2026, Yihang Wang <wangyihanger@gmail.com>"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Generic, auto-configuring srun (深澜) captive-portal auth client for Chinese \
+university campus networks. Host and ac_id are auto-discovered from the \
+captive redirect — most setups only need username + password."""
+section = "net"
+priority = "optional"
+depends = "$auto"
+assets = [
+    ["target/release/authu",                          "usr/bin/",                       "755"],
+    ["../../docs/config.example.toml",                "usr/share/doc/authu/",           "644"],
+    ["../../docs/systemd/system/authu.service",       "lib/systemd/system/",            "644"],
+    ["../../docs/systemd/system/authu@.service",      "lib/systemd/system/",            "644"],
+    ["../../docs/systemd/user/authu.service",         "usr/lib/systemd/user/",          "644"],
+    ["../../README.md",                               "usr/share/doc/authu/README.md",  "644"],
+]
+
 [dependencies]
 srun-core = { path = "../srun-core", version = "0.2.0" }
 srun-client = { path = "../srun", version = "0.2.0" }
