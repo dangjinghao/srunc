@@ -145,9 +145,11 @@ fn status_human_output_for_online() {
         .args(["-c", cfg.path().to_str().unwrap(), "-D", "status"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("online"))
-        .stdout(predicate::str::contains("user=bob"))
-        .stdout(predicate::str::contains("ip=10.0.0.7"));
+        // anstream strips ANSI colors automatically when stdout isn't a TTY,
+        // so assert_cmd's captured output is plain text.
+        .stdout(predicate::str::contains("● Online"))
+        .stdout(predicate::str::contains("bob"))
+        .stdout(predicate::str::contains("10.0.0.7"));
 }
 
 #[test]

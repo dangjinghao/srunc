@@ -395,17 +395,35 @@ fn cmd_status(cli: &Cli) -> Result<()> {
         .status(&ac_id)
         .map_err(|e| anyhow!("status query failed: {e}"))?;
     if cli.json {
+        // JSON mode: machine-readable, never colored.
         println!("{}", serde_json::to_string(&st)?);
-    } else if st.online {
+    } else {
+        print_status_human(&st);
+    }
+    Ok(())
+}
+
+/// Colored, structured status output for humans. anstream's `println!` strips
+/// ANSI escapes automatically when stdout isn't a TTY (pipes, redirects).
+fn print_status_human(st: &srun_client::Status) {
+    use anstream::println;
+    use anstyle::{AnsiColor, Style};
+    let green = Style::new().fg_color(Some(AnsiColor::Green.into())).bold();
+    let dim = Style::new().dimmed();
+    let bold = Style::new().bold();
+    if st.online {
+        println!("{green}● Online{green:#}");
         println!(
-            "online (user={}, ip={})",
-            st.username.as_deref().unwrap_or("?"),
+            "  {dim}User{dim:#}  {bold}{}{bold:#}",
+            st.username.as_deref().unwrap_or("?")
+        );
+        println!(
+            "  {dim}IP{dim:#}    {bold}{}{bold:#}",
             st.ip.as_deref().unwrap_or("?")
         );
     } else {
-        println!("offline");
+        println!("{dim}○ Offline{dim:#}");
     }
-    Ok(())
 }
 
 fn cmd_keepalive(cli: &Cli, campus_only: bool, interval: u64, retry: u32) -> Result<()> {
@@ -449,13 +467,18 @@ fn init_logger(verbose: u8, quiet: u8, daemonize: bool) {
         b.parse_filters(&spec);
     }
     b.format(|buf, record| {
+        // Compact symbol per level — easier to scan than 5-char "INFO " /
+        // "WARN " / "ERROR" prefixes and works the same in both color and
+        // plain modes (anstream/env_logger strip ANSI on non-TTY).
         let style = buf.default_level_style(record.level());
-        writeln!(
-            buf,
-            "{style}{:5}{style:#}  {}",
-            record.level(),
-            record.args(),
-        )
+        let sym = match record.level() {
+            log::Level::Error => "✗",
+            log::Level::Warn => "⚠",
+            log::Level::Info => "→",
+            log::Level::Debug => "·",
+            log::Level::Trace => "·",
+        };
+        writeln!(buf, "{style}{sym}{style:#} {}", record.args())
     });
     let _ = b.try_init();
 }
