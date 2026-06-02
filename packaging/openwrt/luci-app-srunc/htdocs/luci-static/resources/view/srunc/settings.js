@@ -63,12 +63,10 @@ return view.extend({
 
 		// ---- Advanced ----
 
-		// host / ac_id are only meaningful when no profile is picked: the
-		// profile wins over them in the resolution chain anyway, so hiding
-		// the fields under a profile avoids the "I set host but it's ignored"
-		// foot-gun. `depends('profile', '')` shows them only for Custom.
+		// host / ac_id hide when a profile is picked — profile wins anyway
+		// and the foot-gun "I set host but it's ignored" is real.
 		o = s.taboption('advanced', form.Value, 'host', _('Portal host'),
-			_('Override the auth host. Auto-discovered from the captive redirect if blank; falls back to <code>auth4/auth6.tsinghua.edu.cn</code>.'));
+			_('Override the auth host. Auto-discovered from the captive redirect if blank.'));
 		o.optional = true;
 		o.placeholder = 'auto';
 		o.depends('profile', '');
@@ -79,10 +77,6 @@ return view.extend({
 		o.placeholder = 'auto';
 		o.datatype = 'uinteger';
 		o.depends('profile', '');
-
-		o = s.taboption('advanced', form.Flag, 'ipv6', _('Use IPv6 portal'),
-			_('Only affects the Tsinghua fallback default (<code>auth6</code> instead of <code>auth4</code>).'));
-		o.default = '0';
 
 		o = s.taboption('advanced', form.Flag, 'insecure', _('Use http://'),
 			_('Use <code>http://</code> instead of <code>https://</code> for portal requests.'));

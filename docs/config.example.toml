@@ -14,10 +14,10 @@ password = "your-password"
 
 # All of the below are optional — most users only need username + password.
 
-# ipv6 = false          # use auth6.tsinghua portal
+# profile = ""          # built-in (host, ac_id) preset; `srunc profiles list`
+# host = ""             # override portal hostname (auto-discovered if blank)
+# ac_id = ""            # override ac_id (auto-discovered if blank)
 # insecure = false      # use http:// instead of https://
 # timeout = 2           # HTTP timeout, seconds
-# ac_id = ""            # auto-detected for Tsinghua if omitted
-# host = ""             # override portal hostname (default: auth4.tsinghua.edu.cn)
 # ip = ""               # auth for a specific IP (proxy mode)
 # daemonize = false     # set true for systemd/init.d contexts

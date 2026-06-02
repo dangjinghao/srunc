@@ -6,9 +6,10 @@ client, plus the supporting UCI schema, procd init, and rpcd ubus backend.
 ## What you get
 
 - **Settings** (`Services › srunc › Settings`): username + password form over
-  UCI, with optional overrides (host, ac_id, ipv6, timeout, keepalive) on an
-  Advanced tab. Multi-instance: add as many `config srunc '<name>'` sections
-  as you like; each becomes its own procd-managed daemon.
+  UCI, with a deployment-profile dropdown and optional overrides (host,
+  ac_id, timeout, keepalive) on an Advanced tab. Multi-instance: add as
+  many `config srunc '<name>'` sections as you like; each becomes its own
+  procd-managed daemon.
 - **Overview** (`Services › srunc › Overview`): live online/offline status,
   user + IP, and three buttons — Login now / Logout / Restart service. Polls
   every 5 s via ubus.

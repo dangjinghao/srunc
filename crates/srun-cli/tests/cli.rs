@@ -39,7 +39,6 @@ fn help_exits_zero_and_lists_subcommands() {
         .stdout(predicate::str::contains("login"))
         .stdout(predicate::str::contains("logout"))
         .stdout(predicate::str::contains("status"))
-        .stdout(predicate::str::contains("keepalive"))
         .stdout(predicate::str::contains("profiles"));
 }
 

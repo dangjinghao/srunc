@@ -23,8 +23,7 @@ crates/
 │   ├── src/gateway.rs    default-gateway discovery via /proc/net/route
 │   ├── src/models.rs     typed serde responses
 │   ├── src/jsonp.rs      strip `callback(...)` JSONP wrappers
-│   ├── src/profiles.rs   built-in {host, ac_id} for known srun deployments (start: tsinghua)
-│   └── src/tsinghua.rs   legacy DNS-based ac_id detection (fallback)
+│   └── src/profiles.rs   built-in {host, ac_id} for known srun deployments (start: tsinghua)
 │
 └── srun-cli/         this binary (`srunc`)                      (crates.io: srunc)
 ```
@@ -36,7 +35,7 @@ crates/
 - **Typed errors / model.** `PortalError::from_code` returns `WrongPassword` / `AlreadyOnline` / … instead of `map[string]interface{}` + string compares.
 - **`no_std` core** so it can target the smallest possible footprint.
 - **Sync I/O via `ureq` + `rustls`, no tokio** — a single keep-alive timer doesn't justify an async runtime.
-- **Site quirks isolated** in `srun_client::tsinghua` so the protocol code stays portable to other srun deployments. Auto-discovery (`srun_client::discover`) keeps even that as fallback.
+- **Zero deployment-specific knowledge** in the protocol code. `srun_client::discover` derives `(host, ac_id)` from the captive redirect; `profiles` is just a tiny built-in lookup for the rare cases where discovery misses.
 
 ## Build / test from source
 

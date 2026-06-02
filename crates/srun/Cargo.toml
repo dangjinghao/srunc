@@ -8,7 +8,7 @@ homepage.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 readme = "README.md"
-description = "Sync HTTP client speaking the srun (深澜) campus-portal auth protocol, plus DNS-free captive-portal discovery. Generic across srun deployments; Tsinghua's auth4/auth6 are just the default fallback."
+description = "Sync HTTP client speaking the srun (深澜) captive-portal auth protocol, plus DNS-free captive-redirect discovery so it works against any srun deployment without hand-fed host or ac_id."
 keywords = ["srun", "captive-portal", "authentication", "http-client", "campus-network"]
 categories = ["network-programming", "authentication"]
 

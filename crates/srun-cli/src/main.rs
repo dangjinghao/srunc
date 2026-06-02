@@ -1,10 +1,10 @@
 //! `srunc` — srun (深澜) campus-portal CLI.
 //!
-//! Subcommands: `login` / `logout` / `status` / `keepalive`.
+//! Subcommands: `login` / `logout` / `status` / `profiles`.
 //!
-//! The hard, side-effect-free crypto lives in `srun-core`; the HTTP client and
-//! Tsinghua-specific `ac_id` scraping live in `srun`. This binary is the thin
-//! imperative shell on top.
+//! The hard, side-effect-free crypto lives in `srun-core`; the HTTP client
+//! and discovery live in `srun-client`. This binary is the thin imperative
+//! shell on top.
 
 use std::fs;
 use std::io::Write;
@@ -28,10 +28,11 @@ use srun_core::Credentials;
 #[command(
     name = "srunc",
     version,
-    about = "srun (深澜) campus-portal auth tool",
-    long_about = "Authenticate against srun-based campus captive portals. \
-                  Defaults to Tsinghua's auth4/auth6 endpoints, but `--host` \
-                  works for any srun deployment."
+    about = "srun (深澜) captive-portal auth tool",
+    long_about = "Authenticate against srun-based captive portals. Most \
+                  deployments work out of the box via captive-redirect \
+                  auto-discovery; use `--profile <id>` or `--host <h>` for \
+                  the rest."
 )]
 struct Cli {
     // ---- identity ----
@@ -49,14 +50,11 @@ struct Cli {
     config: Option<PathBuf>,
 
     // ---- connection ----
-    /// Override portal hostname. If omitted, the host is auto-discovered from
-    /// the captive-portal redirect (DNS-free, by probing the default gateway);
-    /// falls back to auth4/auth6.tsinghua.edu.cn.
+    /// Override portal hostname. Auto-discovered from the captive-portal
+    /// redirect (DNS-free, by probing the default gateway) if omitted; can
+    /// also be set via a `--profile` preset.
     #[arg(long, global = true)]
     host: Option<String>,
-    /// Use the IPv6 portal (only affects the Tsinghua fallback default).
-    #[arg(short = '6', long, global = true)]
-    ipv6: bool,
     /// Use http:// instead of https://.
     #[arg(long, global = true)]
     insecure: bool,
@@ -119,16 +117,6 @@ enum Cmd {
     Logout,
     /// Print whether we are currently online.
     Status,
-    /// Run only the keepalive loop (no login attempt).
-    Keepalive {
-        /// Probe an in-campus URL instead of the public internet.
-        #[arg(short = 'C', long)]
-        campus_only: bool,
-        #[arg(short, long, default_value_t = 3)]
-        interval: u64,
-        #[arg(short, long, default_value_t = 2)]
-        retry: u32,
-    },
     /// Manage deployment profiles (built-in host + ac_id for known srun installs).
     Profiles {
         #[command(subcommand)]
@@ -155,7 +143,6 @@ struct ConfigFile {
     username: Option<String>,
     password: Option<String>,
     host: Option<String>,
-    ipv6: bool,
     insecure: bool,
     ac_id: Option<String>,
     ip: Option<String>,
@@ -169,7 +156,6 @@ struct Settings {
     username: String,
     password: String,
     host: Option<String>,
-    ipv6: bool,
     insecure: bool,
     ac_id: Option<String>,
     ip: String,
@@ -215,7 +201,6 @@ fn resolve(cli: &Cli) -> Result<Settings> {
         username: cli.username.clone().or(cfg.username).unwrap_or_default(),
         password: cli.password.clone().or(cfg.password).unwrap_or_default(),
         host: cli.host.clone().or(cfg.host),
-        ipv6: cli.ipv6 || cfg.ipv6,
         insecure: cli.insecure || cfg.insecure,
         ac_id: cli.ac_id.clone().or(cfg.ac_id),
         ip: cli.ip.clone().or(cfg.ip).unwrap_or_default(),
@@ -248,26 +233,16 @@ fn prompt_credentials(s: &mut Settings) -> Result<()> {
     Ok(())
 }
 
-/// Resolve the `{endpoints, ac_id}` pair, auto-discovering missing fields.
-///
-/// Fallback chain (first non-None wins for each):
-///
-/// 1. Explicit `--host` / `--ac-id` (CLI or TOML).
-/// 2. **Deployment profile** (`--profile <id>`): a built-in (`host`, `ac_id`)
-///    pair for a known srun installation (Tsinghua, …). Saves users from
-///    looking up portal endpoints by hand. See [`srun_client::profiles`].
-/// 3. **Captive-portal discovery**: probe `http://<default-gateway>/` (DNS-free)
-///    and read both the auth host AND the ac_id out of the srun redirect.
-///    Deployment-agnostic — works for any srun site, even one with no
-///    profile yet, and survives routers booting before DNS / auth.
-/// 4. Tsinghua default host (`auth4`/`auth6.tsinghua.edu.cn`, picked by
-///    `--ipv6`) + legacy DNS-based `tsinghua::detect_ac_id` for ac_id.
-/// 5. Final fallback ac_id `"1"` (with a warning unless daemonized).
-fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
-    // Profile is a *passive* layer: it fills holes the user left open, but
-    // never overrides an explicit value. Unknown ids warn and are ignored —
-    // we don't want a typo'd `--profile tsignhua` to silently fall through
-    // to a different deployment via auto-discovery.
+struct Resolved {
+    host: String,
+    endpoints: Endpoints,
+    ac_id: String,
+}
+
+/// Fallback chain: explicit `--host`/`--ac-id` → `--profile` preset →
+/// captive-portal discovery (probe default gateway). Errors out if all three
+/// fail to yield a value, rather than silently picking a stale default.
+fn resolve_target(s: &Settings) -> Result<Resolved> {
     let profile = s.profile.as_deref().and_then(|id| {
         let p = srun_client::profiles::by_id(id);
         if p.is_none() {
@@ -275,18 +250,9 @@ fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
         }
         p
     });
-    if let Some(p) = profile {
-        debug!(
-            "using profile {:?}: host={} ac_id={}",
-            p.id, p.host, p.ac_id
-        );
-    }
-
     let profile_host = profile.map(|p| p.host.to_string());
     let profile_ac_id = profile.map(|p| p.ac_id.to_string());
 
-    // Skip the gateway probe if every field is already pinned (explicit or
-    // profile). Probing costs an HTTP request and otherwise just adds latency.
     let need_discovery = (s.host.is_none() && profile_host.is_none())
         || (s.ac_id.is_none() && profile_ac_id.is_none());
     let discovered = if need_discovery {
@@ -294,10 +260,7 @@ fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
             .and_then(|gw| {
                 info!("probing gateway {gw} for srun portal hints");
                 match srun_client::discover(&gw, s.timeout) {
-                    Ok(d) => {
-                        debug!("discovered: host={:?} ac_id={:?}", d.host, d.ac_id);
-                        Some(d)
-                    }
+                    Ok(d) => Some(d),
                     Err(e) => {
                         debug!("gateway probe failed: {e}");
                         None
@@ -314,14 +277,12 @@ fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
         .clone()
         .or(profile_host)
         .or(discovered.host)
-        .unwrap_or_else(|| {
-            if s.ipv6 {
-                "auth6.tsinghua.edu.cn".into()
-            } else {
-                "auth4.tsinghua.edu.cn".into()
-            }
-        });
-    debug!("using portal host: {host}");
+        .ok_or_else(|| {
+            anyhow!(
+                "could not determine portal host — pass --host, --profile <id>, \
+                 or ensure the default gateway redirects to a captive portal"
+            )
+        })?;
     let endpoints = Endpoints::from_host(&host, s.insecure);
 
     let ac_id = s
@@ -329,17 +290,19 @@ fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
         .clone()
         .or(profile_ac_id)
         .or(discovered.ac_id)
-        .or_else(|| {
-            let client = Client::new(endpoints.clone(), s.timeout);
-            srun_client::tsinghua::detect_ac_id(&client, s.ipv6).ok()
-        })
-        .unwrap_or_else(|| {
-            warn!("ac_id detection failed; falling back to \"1\"");
-            "1".into()
-        });
-    debug!("using ac_id: {ac_id}");
+        .ok_or_else(|| {
+            anyhow!(
+                "could not determine ac_id — pass --ac-id, --profile <id>, \
+                 or ensure the captive redirect carries an index_<N>.html / ac_id=<N> hint"
+            )
+        })?;
 
-    (endpoints, ac_id)
+    debug!("resolved: host={host} ac_id={ac_id}");
+    Ok(Resolved {
+        host,
+        endpoints,
+        ac_id,
+    })
 }
 
 fn cmd_profiles_list(json: bool) -> Result<()> {
@@ -365,8 +328,6 @@ fn cmd_profiles_list(json: bool) -> Result<()> {
     Ok(())
 }
 
-// ---------- keepalive ----------
-
 fn install_signal_handler() -> Result<Arc<AtomicBool>> {
     let stop = Arc::new(AtomicBool::new(false));
     {
@@ -381,19 +342,20 @@ fn run_keepalive(
     stop: Arc<AtomicBool>,
     interval: u64,
     retry: u32,
-    ipv6: bool,
     campus_only: bool,
-    daemonize: bool,
+    portal_host: &str,
 ) -> Result<()> {
     let agent = ureq::AgentBuilder::new()
         .timeout(Duration::from_secs(10))
         .build();
-    let target = if campus_only || ipv6 {
-        "https://www.tsinghua.edu.cn/"
+    // campus_only: probe the portal host itself (always in-campus, never
+    // billed). Otherwise: a public anchor.
+    let in_campus = format!("http://{portal_host}/");
+    let target: &str = if campus_only {
+        &in_campus
     } else {
         "https://www.baidu.com/"
     };
-    let _ = daemonize; // level filtering is now handled by the logger, not ad-hoc gating
     info!("keepalive: probing {target} every {interval}s");
 
     let mut fails = 0u32;
@@ -408,18 +370,16 @@ fn run_keepalive(
                 warn!("keepalive: probe failed ({fails}/{retry}): {e}");
             }
         }
-        // Sleep in 1-second slices so SIGTERM is responsive.
+        // 1-second slices keep SIGTERM responsive.
         let mut left = interval;
         while left > 0 && !stop.load(Ordering::SeqCst) {
             std::thread::sleep(Duration::from_secs(1));
             left -= 1;
         }
     }
-    info!("keepalive: stop signal received, exiting");
+    info!("keepalive: stop received, exiting");
     Ok(())
 }
-
-// ---------- subcommands ----------
 
 fn cmd_login(
     cli: &Cli,
@@ -431,21 +391,21 @@ fn cmd_login(
     let mut s = resolve(cli)?;
     prompt_credentials(&mut s)?;
 
-    let (endpoints, ac_id) = resolve_endpoints_and_ac_id(&s);
-    let client = Client::new(endpoints, s.timeout);
+    let r = resolve_target(&s)?;
+    let client = Client::new(r.endpoints, s.timeout);
     let creds = Credentials {
         username: &s.username,
         password: &s.password,
     };
 
     client
-        .login(&creds, &ac_id, &s.ip)
+        .login(&creds, &r.ac_id, &s.ip)
         .map_err(|e| anyhow!("login failed: {e}"))?;
     info!("login: ok");
 
     if keepalive {
         let stop = install_signal_handler()?;
-        run_keepalive(stop, interval, retry, s.ipv6, campus_only, s.daemonize)?;
+        run_keepalive(stop, interval, retry, campus_only, &r.host)?;
     }
     Ok(())
 }
@@ -462,10 +422,10 @@ fn cmd_logout(cli: &Cli) -> Result<()> {
     if s.username.is_empty() {
         bail!("username required");
     }
-    let (endpoints, ac_id) = resolve_endpoints_and_ac_id(&s);
-    let client = Client::new(endpoints, s.timeout);
+    let r = resolve_target(&s)?;
+    let client = Client::new(r.endpoints, s.timeout);
     client
-        .logout(&s.username, &ac_id, &s.ip)
+        .logout(&s.username, &r.ac_id, &s.ip)
         .map_err(|e| anyhow!("logout failed: {e}"))?;
     info!("logout: ok");
     Ok(())
@@ -473,13 +433,12 @@ fn cmd_logout(cli: &Cli) -> Result<()> {
 
 fn cmd_status(cli: &Cli) -> Result<()> {
     let s = resolve(cli)?;
-    let (endpoints, ac_id) = resolve_endpoints_and_ac_id(&s);
-    let client = Client::new(endpoints, s.timeout);
+    let r = resolve_target(&s)?;
+    let client = Client::new(r.endpoints, s.timeout);
     let st = client
-        .status(&ac_id)
+        .status(&r.ac_id)
         .map_err(|e| anyhow!("status query failed: {e}"))?;
     if cli.json {
-        // JSON mode: machine-readable, never colored.
         println!("{}", serde_json::to_string(&st)?);
     } else {
         print_status_human(&st);
@@ -487,8 +446,6 @@ fn cmd_status(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-/// Colored, structured status output for humans. anstream's `println!` strips
-/// ANSI escapes automatically when stdout isn't a TTY (pipes, redirects).
 fn print_status_human(st: &srun_client::Status) {
     use anstream::println;
     use anstyle::{AnsiColor, Style};
@@ -510,25 +467,9 @@ fn print_status_human(st: &srun_client::Status) {
     }
 }
 
-fn cmd_keepalive(cli: &Cli, campus_only: bool, interval: u64, retry: u32) -> Result<()> {
-    let s = resolve(cli)?;
-    let stop = install_signal_handler()?;
-    run_keepalive(stop, interval, retry, s.ipv6, campus_only, s.daemonize)
-}
-
-// ---------- logging ----------
-
-/// Configure and install the global logger.
-///
-/// Base level: `ERROR` under `--daemonize` (procd / systemd captures stderr
-/// into journals — keep them quiet), else `INFO`. `-v` bumps a level, `-q`
-/// drops one, and `RUST_LOG` (env_logger's standard spec, supports
-/// `module=level` filters) overrides everything.
-///
-/// Third-party crates (ureq, rustls, …) are clamped to `WARN` regardless,
-/// so `-v` debug doesn't drown the user in TLS-handshake chatter. NB: the
-/// binary's module path is `srunc` (the `[[bin]]` name), not `srun_cli`
-/// (the package name), so the whitelist names both roots explicitly.
+/// Default: ERROR under `--daemonize`, else INFO. `-v` bumps, `-q` drops,
+/// `RUST_LOG` overrides. Third-party crates are clamped at WARN so `-v` debug
+/// doesn't drown the user in TLS-handshake chatter.
 fn init_logger(verbose: u8, quiet: u8, daemonize: bool) {
     let base: i16 = if daemonize { 1 } else { 3 };
     let n = (base + verbose as i16 - quiet as i16).clamp(0, 5);
@@ -543,24 +484,20 @@ fn init_logger(verbose: u8, quiet: u8, daemonize: bool) {
 
     let mut b = env_logger::Builder::new();
     b.filter_level(LevelFilter::Warn);
+    // binary's [[bin]] name is `srunc`, not the package name `srun_cli`.
     b.filter_module("srunc", our_level);
     b.filter_module("srun_client", our_level);
     b.filter_module("srun_core", our_level);
-    // RUST_LOG, if set, layers its directives on top — most-specific match wins.
     if let Ok(spec) = std::env::var("RUST_LOG") {
         b.parse_filters(&spec);
     }
     b.format(|buf, record| {
-        // Compact symbol per level — easier to scan than 5-char "INFO " /
-        // "WARN " / "ERROR" prefixes and works the same in both color and
-        // plain modes (anstream/env_logger strip ANSI on non-TTY).
         let style = buf.default_level_style(record.level());
         let sym = match record.level() {
             log::Level::Error => "✗",
             log::Level::Warn => "⚠",
             log::Level::Info => "→",
-            log::Level::Debug => "·",
-            log::Level::Trace => "·",
+            log::Level::Debug | log::Level::Trace => "·",
         };
         writeln!(buf, "{style}{sym}{style:#} {}", record.args())
     });
@@ -581,11 +518,6 @@ fn main() -> ExitCode {
         } => cmd_login(&cli, *keepalive, *campus_only, *interval, *retry),
         Cmd::Logout => cmd_logout(&cli),
         Cmd::Status => cmd_status(&cli),
-        Cmd::Keepalive {
-            campus_only,
-            interval,
-            retry,
-        } => cmd_keepalive(&cli, *campus_only, *interval, *retry),
         Cmd::Profiles { action } => match action {
             ProfilesCmd::List { json } => cmd_profiles_list(*json),
         },
