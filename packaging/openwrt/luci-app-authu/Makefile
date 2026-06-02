@@ -1,10 +1,17 @@
 # OpenWrt feed package — luci-app-authu.
 #
-# Noarch (PKGARCH=all) LuCI app. Expects the `authu` binary at /usr/sbin/authu
-# (install separately from the project release tarball; per-arch musl static).
+# **Arch-specific** (not noarch): bundles the prebuilt static-musl `authu`
+# binary alongside the LuCI assets, so `opkg install luci-app-authu_*.ipk`
+# installs everything in one shot. The binary is fetched from the project's
+# GitHub Release per-arch tarball and placed at `./files/authu` before this
+# Makefile runs — see `.github/workflows/release.yml` for the CI plumbing.
 #
-# Built by CI via openwrt/gh-action-sdk; locally you can:
+# Locally (rare; CI normally drives this):
 #
+#   # 1. Drop the prebuilt static-musl binary for your target into ./files/
+#   curl -L https://github.com/WangYihang/authu/releases/latest/download/authu-x86_64-unknown-linux-musl.tar.gz \
+#     | tar -xz -C /tmp/ && cp /tmp/authu-x86_64-unknown-linux-musl/authu ./files/authu
+#   # 2. Build with the OpenWrt SDK
 #   echo "src-link authu $(realpath packaging/openwrt)" >> feeds.conf
 #   ./scripts/feeds update authu && ./scripts/feeds install -p authu luci-app-authu
 #   make package/luci-app-authu/compile V=s
@@ -12,19 +19,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-authu
-PKG_VERSION:=0.2.1
+PKG_VERSION:=0.2.2
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_MAINTAINER:=Yihang Wang <wangyihanger@gmail.com>
 
-LUCI_TITLE:=LuCI support for authu (srun campus-portal auth)
+LUCI_TITLE:=authu (srun campus-portal auth) + LuCI web UI
 LUCI_DESCRIPTION:=\
-  Web UI for the generic srun (深澜) captive-portal auth client `authu`. \
-  Auto-discovers the portal host and ac_id from the captive redirect — \
-  most users only need to set username + password. Multi-instance via UCI. \
-  Requires /usr/sbin/authu (install from the project release tarball).
+  Generic srun (深澜) captive-portal auth client with a modern LuCI web UI \
+  under Services › authu. Auto-discovers the portal host and ac_id from \
+  the captive redirect — most users only need to set username + password. \
+  Multi-instance via UCI. Bundles the static-musl `authu` binary; no \
+  separate download needed.
 LUCI_DEPENDS:=
-LUCI_PKGARCH:=all
 
 # Absolute path to luci.mk so the package builds from any feed location
 # (the standard `include ../../luci.mk` only resolves when located inside
@@ -39,12 +46,14 @@ define Package/luci-app-authu/install
 	$(INSTALL_DIR)  $(1)/etc/config
 	$(INSTALL_DIR)  $(1)/etc/init.d
 	$(INSTALL_DIR)  $(1)/usr/libexec/rpcd
+	$(INSTALL_DIR)  $(1)/usr/sbin
 	$(INSTALL_DIR)  $(1)/usr/share/rpcd/acl.d
 	$(INSTALL_DIR)  $(1)/usr/share/luci/menu.d
 	$(INSTALL_DIR)  $(1)/www/luci-static/resources/view/authu
 	$(INSTALL_CONF) ./root/etc/config/authu                              $(1)/etc/config/authu
 	$(INSTALL_BIN)  ./root/etc/init.d/authu                              $(1)/etc/init.d/authu
 	$(INSTALL_BIN)  ./root/usr/libexec/rpcd/authu                        $(1)/usr/libexec/rpcd/authu
+	$(INSTALL_BIN)  ./files/authu                                        $(1)/usr/sbin/authu
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-authu.json      $(1)/usr/share/rpcd/acl.d/luci-app-authu.json
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-authu.json     $(1)/usr/share/luci/menu.d/luci-app-authu.json
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/authu/*.js       $(1)/www/luci-static/resources/view/authu/

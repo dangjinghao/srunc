@@ -107,19 +107,46 @@ jobs:
             staging/*.deb
 
   ipk:
-    name: luci-app-authu (.ipk)
+    name: ${{ matrix.arch }} .ipk
+    needs: build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # OpenWrt SDK arch → which musl tarball from `build` to bundle.
+          # We pick the most common router architectures; others can build
+          # locally by dropping a binary into packaging/openwrt/luci-app-authu/files/.
+          - { arch: "x86_64-24.10.0",                       musl_target: "x86_64-unknown-linux-musl"      }
+          - { arch: "aarch64_cortex-a53-24.10.0",           musl_target: "aarch64-unknown-linux-musl"     }
+          - { arch: "aarch64_cortex-a72-24.10.0",           musl_target: "aarch64-unknown-linux-musl"     }
+          - { arch: "aarch64_generic-24.10.0",              musl_target: "aarch64-unknown-linux-musl"     }
+          - { arch: "arm_cortex-a7_neon-vfpv4-24.10.0",     musl_target: "armv7-unknown-linux-musleabihf" }
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Pull the matching prebuilt musl binary from the `build` matrix.
+      - name: Download prebuilt binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.musl_target }}
+          path: prebuilt/
+
+      - name: Stage binary into the package
+        run: |
+          tar -xzf prebuilt/authu-${{ matrix.musl_target }}.tar.gz -C prebuilt/
+          mkdir -p packaging/openwrt/luci-app-authu/files
+          cp prebuilt/authu-${{ matrix.musl_target }}/authu \
+             packaging/openwrt/luci-app-authu/files/authu
+          chmod +x packaging/openwrt/luci-app-authu/files/authu
+          ls -la packaging/openwrt/luci-app-authu/files/
+
       - name: Build .ipk via openwrt SDK
         uses: openwrt/gh-action-sdk@main
         env:
-          # luci-app-authu is noarch (LUCI_PKGARCH:=all) so any SDK arch works;
-          # we just need an OpenWrt 24.10 container to get the luci feed.
-          ARCH: x86_64-24.10.0
+          ARCH: ${{ matrix.arch }}
           FEED_DIR: ${{ github.workspace }}/packaging/openwrt
           FEEDNAME: authu
           PACKAGES: luci-app-authu
@@ -134,7 +161,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: luci-app-authu-ipk
+          name: luci-app-authu-ipk-${{ matrix.arch }}
           path: staging/*.ipk
 
   release:

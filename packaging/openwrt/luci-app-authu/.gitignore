@@ -1,0 +1,3 @@
+# CI stages the per-arch prebuilt `authu` binary here right before running
+# the OpenWrt SDK build; never check it in.
+/files/
