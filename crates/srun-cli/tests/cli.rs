@@ -1,7 +1,7 @@
-//! End-to-end tests for the `authu` binary.
+//! End-to-end tests for the `srunc` binary.
 //!
 //! `assert_cmd` spawns the actual built binary, `tempfile` provides scratch
-//! configs (so we never touch the user's real `~/.config/authu/`), and
+//! configs (so we never touch the user's real `~/.config/srunc/`), and
 //! `httpmock` simulates a srun portal so we can exercise the full
 //! resolve-endpoints → HTTP → JSON-output pipeline.
 
@@ -12,11 +12,11 @@ use httpmock::prelude::*;
 use predicates::prelude::*;
 use tempfile::NamedTempFile;
 
-/// Build a fresh `Command` for the `authu` binary, pre-configured so it
+/// Build a fresh `Command` for the `srunc` binary, pre-configured so it
 /// can't accidentally read the developer's real config from $HOME.
-fn authu() -> Command {
-    let mut cmd = Command::cargo_bin("authu").unwrap();
-    cmd.env_remove("AUTHU_CONFIG")
+fn srunc() -> Command {
+    let mut cmd = Command::cargo_bin("srunc").unwrap();
+    cmd.env_remove("SRUNC_CONFIG")
         .env_remove("XDG_CONFIG_HOME")
         .env("HOME", "/nonexistent");
     cmd
@@ -32,7 +32,7 @@ fn write_temp_config(toml: &str) -> NamedTempFile {
 
 #[test]
 fn help_exits_zero_and_lists_subcommands() {
-    authu()
+    srunc()
         .arg("--help")
         .assert()
         .success()
@@ -44,7 +44,7 @@ fn help_exits_zero_and_lists_subcommands() {
 
 #[test]
 fn version_reports_package_version() {
-    authu()
+    srunc()
         .arg("--version")
         .assert()
         .success()
@@ -58,7 +58,7 @@ fn missing_creds_in_daemonize_mode_errors_cleanly() {
     // No config, no -u/-p, -D forbids stdin prompts → must fail with a clear
     // message instead of hanging or panicking.
     let cfg = write_temp_config(""); // empty config: zero fields set
-    authu()
+    srunc()
         .args(["-c", cfg.path().to_str().unwrap(), "-D", "login"])
         .assert()
         .failure()
@@ -68,7 +68,7 @@ fn missing_creds_in_daemonize_mode_errors_cleanly() {
 #[test]
 fn malformed_toml_surfaces_a_parse_error() {
     let cfg = write_temp_config("this is not = valid = toml at all\n[[[\n");
-    authu()
+    srunc()
         .args(["-c", cfg.path().to_str().unwrap(), "status"])
         .assert()
         .failure()
@@ -81,7 +81,7 @@ fn unknown_field_in_config_is_rejected() {
     // silently ignored.
     let cfg =
         write_temp_config("username = \"alice\"\npassword = \"x\"\nunknown_field = \"oops\"\n");
-    authu()
+    srunc()
         .args(["-c", cfg.path().to_str().unwrap(), "-D", "status"])
         .assert()
         .failure()
@@ -116,7 +116,7 @@ fn status_json_emits_expected_shape() {
         "username = \"alice\"\npassword = \"x\"\nhost = \"{host}\"\nac_id = \"1\"\ninsecure = true\n"
     ));
 
-    let out = authu()
+    let out = srunc()
         .args(["-c", cfg.path().to_str().unwrap(), "-D", "--json", "status"])
         .assert()
         .success()
@@ -141,7 +141,7 @@ fn status_human_output_for_online() {
         "username = \"bob\"\npassword = \"x\"\nhost = \"{host}\"\nac_id = \"1\"\ninsecure = true\n"
     ));
 
-    authu()
+    srunc()
         .args(["-c", cfg.path().to_str().unwrap(), "-D", "status"])
         .assert()
         .success()
@@ -163,7 +163,7 @@ fn quiet_flag_suppresses_info_logs_on_stderr() {
     ));
 
     // -qq drops the level below INFO; no "INFO" lines should appear on stderr.
-    authu()
+    srunc()
         .args([
             "-c",
             cfg.path().to_str().unwrap(),

@@ -1,0 +1,17 @@
+# Per-user unit. Drop into ~/.config/systemd/user/, then:
+#   systemctl --user enable --now srunc
+#
+# Config file is auto-located at ~/.config/srunc/config.toml.
+
+[Unit]
+Description=srunc — srun campus-portal auth (user session)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/srunc login -k -D
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

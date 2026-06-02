@@ -6,7 +6,7 @@
 
 Sync HTTP client speaking the srun (深澜) campus-portal auth protocol, plus DNS-free captive-portal **auto-discovery**. Generic across srun deployments — Tsinghua's `auth4`/`auth6` are just the default fallback.
 
-This crate is one piece of the [authu](https://github.com/wangyihang/authu) project. End users typically want the [`authu`](https://crates.io/crates/authu) CLI; this crate is for embedding srun auth into another Rust app.
+This crate is one piece of the [srunc](https://github.com/WangYihang/srunc) project. End users typically want the [`srunc`](https://crates.io/crates/srunc) CLI; this crate is for embedding srun auth into another Rust app.
 
 ## What's in here
 

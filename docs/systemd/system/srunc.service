@@ -1,0 +1,26 @@
+# Drop into /etc/systemd/system/, then:
+#   systemctl daemon-reload
+#   systemctl enable --now srunc
+#
+# Reads credentials from /etc/srunc/config.toml — see docs/config.example.toml.
+# Make sure that file is readable by the User= below (e.g. `setfacl -m u:nobody:r`).
+
+[Unit]
+Description=srunc — srun campus-portal auth
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+ExecStart=/usr/local/bin/srunc -c /etc/srunc/config.toml login -k -D
+Restart=on-failure
+RestartSec=10s
+# Hardening (optional; remove if they interfere with your distro):
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

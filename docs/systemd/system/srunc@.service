@@ -1,0 +1,17 @@
+# Templated unit — one instance per config file under /etc/srunc/.
+# Enable per instance, e.g. for /etc/srunc/v4.toml:
+#   systemctl enable --now srunc@v4
+
+[Unit]
+Description=srunc (%i) — srun campus-portal auth
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/srunc -c /etc/srunc/%i.toml login -k -D
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

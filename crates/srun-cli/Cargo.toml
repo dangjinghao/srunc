@@ -1,5 +1,5 @@
 [package]
-name = "authu"
+name = "srunc"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,14 +9,14 @@ authors.workspace = true
 rust-version.workspace = true
 readme = "../../README.md"
 description = "Generic, auto-configuring srun (深澜) campus-portal auth CLI. Works on any srun deployment — host and ac_id are auto-discovered from the captive-portal redirect. Static musl binary suitable for OpenWrt routers."
-keywords = ["srun", "captive-portal", "tsinghua", "cli", "campus-network"]
+keywords = ["srun", "captive-portal", "cli", "campus-network", "auth"]
 categories = ["command-line-utilities", "network-programming", "authentication"]
 
 [[bin]]
-name = "authu"
+name = "srunc"
 path = "src/main.rs"
 
-# Lets `cargo binstall authu` fetch the prebuilt binary from our GitHub Release
+# Lets `cargo binstall srunc` fetch the prebuilt binary from our GitHub Release
 # instead of compiling from source. The defaults assume archives named
 # `{name}-v{version}-{target}.{ext}`, but we drop the `v{version}` — override.
 [package.metadata.binstall]
@@ -30,7 +30,7 @@ pkg-fmt = "zip"
 # Debian package, produced by `cargo deb`. Triggered from CI for x86_64-gnu
 # and aarch64-gnu targets (musl binaries aren't .deb-friendly).
 [package.metadata.deb]
-name = "authu"
+name = "srunc"
 maintainer = "Yihang Wang <wangyihanger@gmail.com>"
 copyright = "2026, Yihang Wang <wangyihanger@gmail.com>"
 license-file = ["../../LICENSE", "0"]
@@ -42,17 +42,17 @@ section = "net"
 priority = "optional"
 depends = "$auto"
 assets = [
-    ["target/release/authu",                          "usr/bin/",                       "755"],
-    ["../../docs/config.example.toml",                "usr/share/doc/authu/",           "644"],
-    ["../../docs/systemd/system/authu.service",       "lib/systemd/system/",            "644"],
-    ["../../docs/systemd/system/authu@.service",      "lib/systemd/system/",            "644"],
-    ["../../docs/systemd/user/authu.service",         "usr/lib/systemd/user/",          "644"],
-    ["../../README.md",                               "usr/share/doc/authu/README.md",  "644"],
+    ["target/release/srunc",                          "usr/bin/",                       "755"],
+    ["../../docs/config.example.toml",                "usr/share/doc/srunc/",           "644"],
+    ["../../docs/systemd/system/srunc.service",       "lib/systemd/system/",            "644"],
+    ["../../docs/systemd/system/srunc@.service",      "lib/systemd/system/",            "644"],
+    ["../../docs/systemd/user/srunc.service",         "usr/lib/systemd/user/",          "644"],
+    ["../../README.md",                               "usr/share/doc/srunc/README.md",  "644"],
 ]
 
 [dependencies]
-srun-core = { path = "../srun-core", version = "0.2.6" }
-srun-client = { path = "../srun", version = "0.2.6" }
+srun-core = { path = "../srun-core", version = "0.3.0" }
+srun-client = { path = "../srun", version = "0.3.0" }
 clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "color", "suggestions", "error-context", "wrap_help"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

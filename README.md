@@ -1,4 +1,4 @@
-# authu — srun (深澜) campus-portal auth
+# srunc — srun (深澜) campus-portal auth
 
 Small static-binary authenticator for the **srun** (深澜) captive portal used by TUNET and many other Chinese university networks. Designed for headless servers and routers. Auto-discovers `host` + `ac_id` from the captive redirect; most setups only need username + password.
 
@@ -7,15 +7,15 @@ Small static-binary authenticator for the **srun** (深澜) captive portal used 
 ## Install
 
 ```sh
-cargo binstall authu      # prebuilt binary from the latest release (fast)
-cargo install authu       # compile from source
+cargo binstall srunc      # prebuilt binary from the latest release (fast)
+cargo install srunc       # compile from source
 ```
 
-Or grab a per-target binary from the [latest Release](https://github.com/WangYihang/authu/releases) directly. On OpenWrt, install [`luci-app-authu`](packaging/openwrt/) for a web UI under *Services › authu*. Per-distro packages: see [`packaging/`](packaging/).
+Or grab a per-target binary from the [latest Release](https://github.com/WangYihang/srunc/releases) directly. On OpenWrt, install [`luci-app-srunc`](packaging/openwrt/) for a web UI under *Services › srunc*. Per-distro packages: see [`packaging/`](packaging/).
 
 ## Configure
 
-Write `~/.config/authu/config.toml`:
+Write `~/.config/srunc/config.toml`:
 
 ```toml
 username = "your-account"
@@ -27,12 +27,12 @@ Full options + search paths: [`docs/config.example.toml`](docs/config.example.to
 ## Run
 
 ```sh
-authu login              # one-shot auth
-authu login -k           # auth + keep the session alive
-authu status             # online? user? ip?
-authu status --json      # machine-readable
-authu logout
-authu --help             # all flags (-v / -q / --host / --ac-id / ...)
+srunc login              # one-shot auth
+srunc login -k           # auth + keep the session alive
+srunc status             # online? user? ip?
+srunc status --json      # machine-readable
+srunc logout
+srunc --help             # all flags (-v / -q / --host / --ac-id / ...)
 ```
 
 ## Service mode
@@ -41,9 +41,9 @@ authu --help             # all flags (-v / -q / --host / --ac-id / ...)
 
 | Platform | File |
 |----------|------|
-| systemd (system) | [`docs/systemd/system/authu.service`](docs/systemd/system/authu.service) |
-| systemd (templated, multi-instance) | [`docs/systemd/system/authu@.service`](docs/systemd/system/authu@.service) |
-| systemd (per-user) | [`docs/systemd/user/authu.service`](docs/systemd/user/authu.service) |
+| systemd (system) | [`docs/systemd/system/srunc.service`](docs/systemd/system/srunc.service) |
+| systemd (templated, multi-instance) | [`docs/systemd/system/srunc@.service`](docs/systemd/system/srunc@.service) |
+| systemd (per-user) | [`docs/systemd/user/srunc.service`](docs/systemd/user/srunc.service) |
 | OpenWrt LuCI `.ipk` | [`packaging/openwrt/`](packaging/openwrt/) |
 
 ## More

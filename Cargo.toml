@@ -3,11 +3,11 @@ resolver = "2"
 members = ["crates/srun-core", "crates/srun", "crates/srun-cli"]
 
 [workspace.package]
-version = "0.2.6"
+version = "0.3.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/wangyihang/authu"
-homepage = "https://github.com/wangyihang/authu"
+repository = "https://github.com/WangYihang/srunc"
+homepage = "https://github.com/WangYihang/srunc"
 authors = ["Yihang Wang <wangyihanger@gmail.com>"]
 rust-version = "1.74"
 

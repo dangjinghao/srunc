@@ -1,0 +1,17 @@
+{
+	"luci-app-srunc": {
+		"description": "Grant the LuCI session ubus access to the `srunc` object and UCI access to the srunc config.",
+		"read": {
+			"ubus": {
+				"srunc": [ "status" ]
+			},
+			"uci": [ "srunc" ]
+		},
+		"write": {
+			"ubus": {
+				"srunc": [ "login", "logout", "restart" ]
+			},
+			"uci": [ "srunc" ]
+		}
+	}
+}

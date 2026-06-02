@@ -1,0 +1,4 @@
+# CI stages the per-arch prebuilt `srunc` binary here right before running
+# the OpenWrt SDK build (luci.mk auto-installs root/* → / on the target).
+# Never check the binary into git.
+/root/usr/sbin/srunc

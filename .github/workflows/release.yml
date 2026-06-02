@@ -57,7 +57,7 @@ jobs:
 
       - name: Compress with UPX
         if: contains(matrix.target, '-musl')
-        run: upx --best --lzma "target/${{ matrix.target }}/release/authu"
+        run: upx --best --lzma "target/${{ matrix.target }}/release/srunc"
 
       # Build a Debian .deb for the glibc Linux targets — .deb is for
       # Debian/Ubuntu which use glibc, not musl.
@@ -69,15 +69,15 @@ jobs:
 
       - name: Build .deb
         if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo deb -p authu --target ${{ matrix.target }} --no-build --no-strip
+        run: cargo deb -p srunc --target ${{ matrix.target }} --no-build --no-strip
 
       - name: Package
         shell: bash
         run: |
-          bin=authu
+          bin=srunc
           ext=""
           [ "${{ runner.os }}" = "Windows" ] && ext=".exe"
-          dist="authu-${{ matrix.target }}"
+          dist="srunc-${{ matrix.target }}"
           mkdir -p staging/"$dist"
           cp "target/${{ matrix.target }}/release/$bin$ext" staging/"$dist"/
           cp LICENSE staging/"$dist"/ 2>/dev/null || true
@@ -116,7 +116,7 @@ jobs:
         include:
           # OpenWrt SDK arch → which musl tarball from `build` to bundle.
           # We pick the most common router architectures; others can build
-          # locally by dropping a binary into packaging/openwrt/luci-app-authu/files/.
+          # locally by dropping a binary into packaging/openwrt/luci-app-srunc/files/.
           - { arch: "x86_64-24.10.0",                       musl_target: "x86_64-unknown-linux-musl"      }
           - { arch: "aarch64_cortex-a53-24.10.0",           musl_target: "aarch64-unknown-linux-musl"     }
           - { arch: "aarch64_cortex-a72-24.10.0",           musl_target: "aarch64-unknown-linux-musl"     }
@@ -138,23 +138,23 @@ jobs:
         run: |
           # luci.mk auto-installs everything under root/* → / on the target,
           # preserving executable bits via `cp -pR`. Drop the binary at
-          # root/usr/sbin/authu — no custom INSTALL_BIN rule needed (and any
-          # custom Package/luci-app-authu/install we define would be clobbered
+          # root/usr/sbin/srunc — no custom INSTALL_BIN rule needed (and any
+          # custom Package/luci-app-srunc/install we define would be clobbered
           # by luci.mk's unconditional template anyway).
-          tar -xzf prebuilt/authu-${{ matrix.musl_target }}.tar.gz -C prebuilt/
-          mkdir -p packaging/openwrt/luci-app-authu/root/usr/sbin
-          cp prebuilt/authu-${{ matrix.musl_target }}/authu \
-             packaging/openwrt/luci-app-authu/root/usr/sbin/authu
-          chmod +x packaging/openwrt/luci-app-authu/root/usr/sbin/authu
-          ls -la packaging/openwrt/luci-app-authu/root/usr/sbin/
+          tar -xzf prebuilt/srunc-${{ matrix.musl_target }}.tar.gz -C prebuilt/
+          mkdir -p packaging/openwrt/luci-app-srunc/root/usr/sbin
+          cp prebuilt/srunc-${{ matrix.musl_target }}/srunc \
+             packaging/openwrt/luci-app-srunc/root/usr/sbin/srunc
+          chmod +x packaging/openwrt/luci-app-srunc/root/usr/sbin/srunc
+          ls -la packaging/openwrt/luci-app-srunc/root/usr/sbin/
 
       - name: Build .ipk via openwrt SDK
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}
           FEED_DIR: ${{ github.workspace }}/packaging/openwrt
-          FEEDNAME: authu
-          PACKAGES: luci-app-authu
+          FEEDNAME: srunc
+          PACKAGES: luci-app-srunc
           V: s
           # Skip the SDK's opinionated source-tree checks. shfmt nags
           # at our procd init.d formatting and patch-refresh wants a git
@@ -166,12 +166,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p staging
-          find bin -name 'luci-app-authu_*.ipk' -exec cp {} staging/ \;
+          find bin -name 'luci-app-srunc_*.ipk' -exec cp {} staging/ \;
           ls -la staging/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: luci-app-authu-ipk-${{ matrix.arch }}
+          name: luci-app-srunc-ipk-${{ matrix.arch }}
           path: staging/*.ipk
 
   release:

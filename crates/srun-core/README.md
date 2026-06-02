@@ -6,7 +6,7 @@
 
 Pure, `no_std`-friendly **crypto core** of the srun (深澜) campus-portal auth protocol. Zero I/O, zero global state, byte-for-byte equivalent to the upstream Go reference (golden test vectors pinned).
 
-This crate is one piece of the [authu](https://github.com/wangyihang/authu) project — most users want the [`authu`](https://crates.io/crates/authu) CLI (or the [`srun`](https://crates.io/crates/srun) I/O shell) rather than this raw protocol crate.
+This crate is one piece of the [srunc](https://github.com/WangYihang/srunc) project — most users want the [`srunc`](https://crates.io/crates/srunc) CLI (or the [`srun`](https://crates.io/crates/srun) I/O shell) rather than this raw protocol crate.
 
 ## What's in here
 

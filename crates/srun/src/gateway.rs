@@ -2,7 +2,7 @@
 //!
 //! Returns `None` on non-Linux platforms or any parse failure — callers fall
 //! back to whatever explicit config is available. We deliberately don't pull
-//! in a cross-platform crate (`netdev` etc.) because authu's auto-discovery
+//! in a cross-platform crate (`netdev` etc.) because srunc's auto-discovery
 //! is really only useful on headless routers where DNS doesn't work pre-auth;
 //! macOS/Windows users have working pre-auth DNS via their OS's captive-portal
 //! flow and never exercise this code path.

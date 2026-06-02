@@ -1,4 +1,4 @@
-//! `authu` — srun (深澜) campus-portal CLI.
+//! `srunc` — srun (深澜) campus-portal CLI.
 //!
 //! Subcommands: `login` / `logout` / `status` / `keepalive`.
 //!
@@ -26,7 +26,7 @@ use srun_core::Credentials;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "authu",
+    name = "srunc",
     version,
     about = "srun (深澜) campus-portal auth tool",
     long_about = "Authenticate against srun-based campus captive portals. \
@@ -43,8 +43,8 @@ struct Cli {
     password: Option<String>,
 
     /// Config file path.
-    /// Default search: $AUTHU_CONFIG, $XDG_CONFIG_HOME/authu/config.toml,
-    /// ~/.config/authu/config.toml, ~/.authu.toml.
+    /// Default search: $SRUNC_CONFIG, $XDG_CONFIG_HOME/srunc/config.toml,
+    /// ~/.config/srunc/config.toml, ~/.srunc.toml.
     #[arg(short, long, global = true, value_name = "PATH")]
     config: Option<PathBuf>,
 
@@ -159,7 +159,7 @@ fn locate_config(explicit: Option<&Path>) -> Option<PathBuf> {
     if let Some(p) = explicit {
         return Some(p.to_path_buf());
     }
-    if let Ok(p) = std::env::var("AUTHU_CONFIG") {
+    if let Ok(p) = std::env::var("SRUNC_CONFIG") {
         return Some(p.into());
     }
     let join_exists = |base: &str, sub: &str| -> Option<PathBuf> {
@@ -167,14 +167,14 @@ fn locate_config(explicit: Option<&Path>) -> Option<PathBuf> {
         p.exists().then_some(p)
     };
     if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        if let Some(p) = join_exists(&xdg, "authu/config.toml") {
+        if let Some(p) = join_exists(&xdg, "srunc/config.toml") {
             return Some(p);
         }
     }
     let home = std::env::var("HOME")
         .ok()
         .or_else(|| std::env::var("USERPROFILE").ok())?;
-    join_exists(&home, ".config/authu/config.toml").or_else(|| join_exists(&home, ".authu.toml"))
+    join_exists(&home, ".config/srunc/config.toml").or_else(|| join_exists(&home, ".srunc.toml"))
 }
 
 fn resolve(cli: &Cli) -> Result<Settings> {
@@ -443,7 +443,7 @@ fn cmd_keepalive(cli: &Cli, campus_only: bool, interval: u64, retry: u32) -> Res
 ///
 /// Third-party crates (ureq, rustls, …) are clamped to `WARN` regardless,
 /// so `-v` debug doesn't drown the user in TLS-handshake chatter. NB: the
-/// binary's module path is `authu` (the `[[bin]]` name), not `srun_cli`
+/// binary's module path is `srunc` (the `[[bin]]` name), not `srun_cli`
 /// (the package name), so the whitelist names both roots explicitly.
 fn init_logger(verbose: u8, quiet: u8, daemonize: bool) {
     let base: i16 = if daemonize { 1 } else { 3 };
@@ -459,7 +459,7 @@ fn init_logger(verbose: u8, quiet: u8, daemonize: bool) {
 
     let mut b = env_logger::Builder::new();
     b.filter_level(LevelFilter::Warn);
-    b.filter_module("authu", our_level);
+    b.filter_module("srunc", our_level);
     b.filter_module("srun_client", our_level);
     b.filter_module("srun_core", our_level);
     // RUST_LOG, if set, layers its directives on top — most-specific match wins.

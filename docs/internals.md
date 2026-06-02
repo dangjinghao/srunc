@@ -1,6 +1,6 @@
-# authu — internals
+# srunc — internals
 
-Engineering reference: architecture, build, cross-compile, release. Not needed to *use* authu — see [`../README.md`](../README.md) for that.
+Engineering reference: architecture, build, cross-compile, release. Not needed to *use* srunc — see [`../README.md`](../README.md) for that.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ crates/
 │   ├── src/jsonp.rs      strip `callback(...)` JSONP wrappers
 │   └── src/tsinghua.rs   legacy DNS-based ac_id detection (fallback)
 │
-└── srun-cli/         this binary (`authu`)                      (crates.io: authu)
+└── srun-cli/         this binary (`srunc`)                      (crates.io: srunc)
 ```
 
 ### Why this shape
@@ -43,14 +43,14 @@ crates/
 cargo fmt --all -- --check                              # formatting gate
 cargo clippy --all-targets --locked -- -D warnings      # lint gate
 cargo test --locked --all-targets                       # 46 tests (5 vectors + 26 unit + 7 + 8 integration)
-cargo build --release --locked                          # ~2.3 MB at target/release/authu
+cargo build --release --locked                          # ~2.3 MB at target/release/srunc
 ```
 
 CI runs all of these on every push / PR — see [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
 ## Cross-platform distribution
 
-[`.github/workflows/release.yml`](../.github/workflows/release.yml) publishes archives + `SHA256SUMS` + `luci-app-authu_*.ipk` to a GitHub Release on tag `v*`.
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) publishes archives + `SHA256SUMS` + `luci-app-srunc_*.ipk` to a GitHub Release on tag `v*`.
 
 | OS | Targets |
 |----|---------|

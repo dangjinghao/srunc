@@ -1,13 +1,13 @@
-# authu config file (TOML).
+# srunc config file (TOML).
 #
 # Search order:
 #   1. --config / -c <path>
-#   2. $AUTHU_CONFIG
-#   3. $XDG_CONFIG_HOME/authu/config.toml
-#   4. ~/.config/authu/config.toml
-#   5. ~/.authu.toml
+#   2. $SRUNC_CONFIG
+#   3. $XDG_CONFIG_HOME/srunc/config.toml
+#   4. ~/.config/srunc/config.toml
+#   5. ~/.srunc.toml
 #
-# For service contexts also try /etc/authu/config.toml (pass -c explicitly).
+# For service contexts also try /etc/srunc/config.toml (pass -c explicitly).
 
 username = "your-username"
 password = "your-password"
