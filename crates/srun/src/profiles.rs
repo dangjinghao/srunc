@@ -1,15 +1,15 @@
 //! Deployment profiles: pre-canned `host` + `ac_id` for known srun
 //! installations, so users don't have to look those up by hand.
 //!
-//! srun (深澜) deployments are not limited to universities — banks,
-//! enterprises, and ISPs run them too (see <https://www.srun.com/> for the
-//! vendor's customer list), so this module is intentionally called
-//! *profiles* rather than *schools*.
+//! srun (深澜) is deployed across Chinese universities, banks, enterprises,
+//! and ISPs (see <https://www.srun.com/> for the vendor's customer list).
+//! Each deployment is one entry in [`PROFILES`].
 //!
-//! This is a deliberately tiny, in-binary registry — not a remote JSON.
-//! srun deployments don't change often, and a network dependency for a
-//! settings lookup would be silly. Adding a profile = one PR appending to
-//! [`PROFILES`] (only commit verified `host`/`ac_id` pairs).
+//! Deliberately a tiny in-binary registry, not a remote JSON: srun
+//! deployments don't change often, and a network dependency for a settings
+//! lookup would add supply-chain surface for nothing. Adding a profile =
+//! one PR appending to [`PROFILES`] (only commit verified `host`/`ac_id`
+//! pairs — unverified guesses are worse than no entry).
 //!
 //! The CLI exposes the table via `srunc profiles list --json`; LuCI on
 //! OpenWrt calls that through `ubus -> rpcd` to populate its dropdown.
