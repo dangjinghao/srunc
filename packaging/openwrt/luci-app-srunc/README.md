@@ -5,16 +5,21 @@ client, plus the supporting UCI schema, procd init, and rpcd ubus backend.
 
 ## What you get
 
-- **Settings** (`Services › srunc › Settings`): username + password form over
-  UCI, with a deployment-profile dropdown and optional overrides (host,
-  ac_id, timeout, keepalive) on an Advanced tab. Multi-instance: add as
-  many `config srunc '<name>'` sections as you like; each becomes its own
-  procd-managed daemon.
-- **Overview** (`Services › srunc › Overview`): live online/offline status,
-  user + IP, and three buttons — Login now / Logout / Restart service. Polls
-  every 5 s via ubus.
+- **Settings** (`Services › srunc › Settings`): a single username + password
+  form over UCI, with a deployment-profile dropdown and optional overrides
+  (host, ac_id, timeout, log level) plus keepalive tuning on the Advanced /
+  Keepalive tabs.
+- **Overview** (`Services › srunc › Overview`): live online/offline status as
+  a status pill with user + IP, and three buttons — Login now / Logout /
+  Restart service. Polls every 5 s via ubus.
+- **Log** (`Services › srunc › Log`): recent srunc messages straight from the
+  system log (`logread`), auto-refreshing every 5 s with a pause toggle. The
+  *Log level* setting (Advanced) controls how much the daemon emits.
 - **No manual ac_id / host config**: the `srunc` core auto-discovers both from
   the captive-portal redirect (DNS-free, by probing the default gateway).
+- **Multiple accounts** (power users): the UI manages the `default` instance;
+  add more `config srunc '<name>'` sections to `/etc/config/srunc` and each
+  becomes its own procd-managed daemon.
 
 ## Files
 
@@ -22,10 +27,10 @@ client, plus the supporting UCI schema, procd init, and rpcd ubus backend.
 |------|---------|
 | `root/etc/config/srunc` | UCI schema with sane defaults |
 | `root/etc/init.d/srunc` | procd service, multi-instance, renders UCI → tmpfs TOML (password not in argv) |
-| `root/usr/libexec/rpcd/srunc` | rpcd ubus object (`status` / `login` / `logout` / `restart`) |
+| `root/usr/libexec/rpcd/srunc` | rpcd ubus object (`status` / `log` / `login` / `logout` / `restart`) |
 | `root/usr/share/rpcd/acl.d/luci-app-srunc.json` | LuCI session ACL grants |
 | `root/usr/share/luci/menu.d/luci-app-srunc.json` | menu placement under Services |
-| `htdocs/luci-static/resources/view/srunc/{overview,settings}.js` | client-side LuCI views |
+| `htdocs/luci-static/resources/view/srunc/{overview,settings,log}.js` | client-side LuCI views |
 | `Makefile` | OpenWrt buildroot recipe (`LUCI_PKGARCH:=all`) |
 
 ## Installing

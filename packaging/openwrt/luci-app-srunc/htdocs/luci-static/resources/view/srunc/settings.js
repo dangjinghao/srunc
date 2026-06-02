@@ -29,10 +29,7 @@ return view.extend({
 			_('srunc — srun captive-portal auth'),
 			_('Set username and password; the portal host and ac_id are auto-discovered from the captive redirect, so the override fields can stay blank. Pick a deployment profile below to use built-in defaults instead.'));
 
-		s = m.section(form.TypedSection, 'srunc', _('Instances'));
-		s.anonymous = false;
-		s.addremove = true;
-		s.addbtntitle = _('Add instance');
+		s = m.section(form.NamedSection, 'default', 'srunc', _('Settings'));
 
 		s.tab('basic',     _('Basic'));
 		s.tab('advanced',  _('Advanced'));
@@ -86,6 +83,14 @@ return view.extend({
 		o.datatype = 'uinteger';
 		o.default = '2';
 		o.placeholder = '2';
+
+		o = s.taboption('advanced', form.ListValue, 'log_level', _('Log level'),
+			_('Verbosity of the background daemon. Higher levels show more in the <em>Log</em> tab.'));
+		o.value('error', _('Error'));
+		o.value('warn',  _('Warning'));
+		o.value('info',  _('Info'));
+		o.value('debug', _('Debug'));
+		o.default = 'info';
 
 		// ---- Keepalive ----
 

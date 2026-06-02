@@ -17,6 +17,8 @@ config srunc 'default'
 	# option ac_id ''
 	# option insecure '0'       # http:// instead of https://
 	# option timeout '2'        # HTTP request timeout, seconds
+	# Daemon log verbosity: error | warn | info | debug (shown in the Log tab).
+	option log_level 'info'
 	# --- keepalive (login -k) ---
 	option keepalive '1'
 	option campus_only '0'      # probe in-campus URL for keepalive (avoids billing)
