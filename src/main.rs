@@ -245,8 +245,10 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
         }
         p
     });
-    let profile_host = profile.map(|p| p.host.to_string());
-    let profile_ac_id = profile.map(|p| p.ac_id.to_string());
+    // Label-only profiles (host: None, ac_id: None) flatten to no contribution;
+    // resolution falls through to captive-portal discovery for those fields.
+    let profile_host = profile.and_then(|p| p.host).map(str::to_string);
+    let profile_ac_id = profile.and_then(|p| p.ac_id).map(str::to_string);
 
     let need_discovery = (s.host.is_none() && profile_host.is_none())
         || (s.ac_id.is_none() && profile_ac_id.is_none());
@@ -316,8 +318,14 @@ fn cmd_profiles_list(json: bool) -> Result<()> {
         for p in profiles {
             println!("{bold}{}{bold:#}", p.id);
             println!("  {dim}label{dim:#}  {}", p.label);
-            println!("  {dim}host{dim:#}   {}", p.host);
-            println!("  {dim}ac_id{dim:#}  {}", p.ac_id);
+            println!(
+                "  {dim}host{dim:#}   {}",
+                p.host.unwrap_or("— (auto-discover) —")
+            );
+            println!(
+                "  {dim}ac_id{dim:#}  {}",
+                p.ac_id.unwrap_or("— (auto-discover) —")
+            );
         }
     }
     Ok(())

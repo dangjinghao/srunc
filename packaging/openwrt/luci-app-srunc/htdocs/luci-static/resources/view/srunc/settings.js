@@ -63,20 +63,20 @@ return view.extend({
 
 		// ---- Advanced ----
 
-		// host / ac_id hide when a profile is picked — profile wins anyway
-		// and the foot-gun "I set host but it's ignored" is real.
+		// host / ac_id are always editable: some profiles only carry a
+		// label (verification pending) and need these to actually log in.
+		// When a profile DOES pin a value, the explicit field still wins
+		// (resolution chain: explicit → profile → discovery).
 		o = s.taboption('advanced', form.Value, 'host', _('Portal host'),
-			_('Override the auth host. Auto-discovered from the captive redirect if blank.'));
+			_('Override the auth host. Picked profile wins over auto-discovery; this field wins over both.'));
 		o.optional = true;
 		o.placeholder = 'auto';
-		o.depends('profile', '');
 
 		o = s.taboption('advanced', form.Value, 'ac_id', _('ac_id'),
-			_('Override the access-controller id. Auto-discovered from the captive redirect if blank.'));
+			_('Override the access-controller id. Picked profile wins over auto-discovery; this field wins over both.'));
 		o.optional = true;
 		o.placeholder = 'auto';
 		o.datatype = 'uinteger';
-		o.depends('profile', '');
 
 		o = s.taboption('advanced', form.Flag, 'insecure', _('Use http://'),
 			_('Use <code>http://</code> instead of <code>https://</code> for portal requests.'));
