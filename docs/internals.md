@@ -23,6 +23,7 @@ crates/
 │   ├── src/gateway.rs    default-gateway discovery via /proc/net/route
 │   ├── src/models.rs     typed serde responses
 │   ├── src/jsonp.rs      strip `callback(...)` JSONP wrappers
+│   ├── src/profiles.rs   built-in {host, ac_id} for known srun deployments (start: tsinghua)
 │   └── src/tsinghua.rs   legacy DNS-based ac_id detection (fallback)
 │
 └── srun-cli/         this binary (`srunc`)                      (crates.io: srunc)
@@ -42,7 +43,7 @@ crates/
 ```sh
 cargo fmt --all -- --check                              # formatting gate
 cargo clippy --all-targets --locked -- -D warnings      # lint gate
-cargo test --locked --all-targets                       # 46 tests (5 vectors + 26 unit + 7 + 8 integration)
+cargo test --locked --all-targets                       # 52 tests (5 vectors + 30 unit + 7 + 10 integration)
 cargo build --release --locked                          # ~2.3 MB at target/release/srunc
 ```
 
@@ -75,3 +76,15 @@ Most actively-supported OpenWrt devices in the past five years are armv7 / aarch
 ## Regenerating the end-to-end vector
 
 The base64 / XEncode vectors are copied straight from `libauth/coding_test.go` in the upstream Go repo. The `build_portal_params` vector was produced from the Go reference. To regenerate, add a throwaway test in package `libauth` that calls `buildLoginParams("hello", "pass", "<token>", false, "", "1")` and prints `info` / `chksum`, then run `go test ./libauth -run <name> -v`.
+
+## Adding a deployment profile
+
+The profile registry is a compile-time slice in [`crates/srun/src/profiles.rs`](../crates/srun/src/profiles.rs) — pre-canned `(host, ac_id)` pairs for known srun customers (universities, banks, enterprises; see [srun.com](https://www.srun.com/) for the official customer list). To add one:
+
+1. Append a `Profile { id, label, host, ac_id }` to `PROFILES`, keeping the slice alphabetical by `id`.
+2. `id` is kebab-case and what users pass to `--profile`; `label` is the human-readable name (English + native script if useful); `host` and `ac_id` are the default portal endpoint + access-controller id for that deployment.
+3. Only add a profile whose `host`/`ac_id` you have actually verified on the network — unverified entries are worse than no entry.
+4. Re-run `cargo test` (the registry has a uniqueness check).
+5. The OpenWrt LuCI Settings page picks up new profiles automatically via the `ubus call srunc profiles` rpcd method (no JS changes needed).
+
+A remote/network profile list was considered and rejected: profiles change rarely, and a network dependency for a settings-page dropdown would add a meaningful supply-chain surface for little gain.

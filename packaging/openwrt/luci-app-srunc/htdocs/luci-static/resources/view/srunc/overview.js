@@ -1,6 +1,7 @@
 'use strict';
 'require view';
 'require rpc';
+'require uci';
 'require poll';
 'require ui';
 'require dom';
@@ -30,17 +31,38 @@ var callRestart = rpc.declare({
 	expect: { '': {} }
 });
 
-function renderStatus(s) {
+var callProfiles = rpc.declare({
+	object: 'srunc',
+	method: 'profiles',
+	expect: { profiles: [] }
+});
+
+// Resolve the configured `profile` id (default instance) into its human
+// label. Returns null when no profile is selected (Custom / auto) — caller
+// suppresses the row entirely rather than showing an empty separator.
+function profileLabel(profiles) {
+	var id = uci.get('srunc', 'default', 'profile') || '';
+	if (!id) return null;
+	for (var i = 0; i < profiles.length; i++) {
+		if (profiles[i].id === id) return profiles[i].label;
+	}
+	return id;
+}
+
+function renderStatus(s, profileName) {
 	s = s || {};
 	var online = !!s.online;
 	var dot = online ? '●' : '○';
 	var label = online ? _('Online') : _('Offline');
 	var color = online ? '#2a8c2a' : '#a33';
 
+	var headline = dot + ' ' + label;
+	if (profileName) headline += '  —  ' + profileName;
+
 	var children = [
 		E('div', {
 			'style': 'font-size: 1.4em; font-weight: 600; color: ' + color + ';'
-		}, dot + ' ' + label)
+		}, headline)
 	];
 
 	if (online) {
@@ -81,16 +103,23 @@ function runAction(label, fn, ev) {
 
 return view.extend({
 	load: function () {
-		return callStatus('default').catch(function () { return {}; });
+		return Promise.all([
+			callStatus('default').catch(function () { return {}; }),
+			uci.load('srunc').catch(function () {}),
+			callProfiles().catch(function () { return []; })
+		]);
 	},
 
-	render: function (initial) {
-		var statusBox = E('div', {}, renderStatus(initial));
+	render: function (loaded) {
+		var initial = (loaded && loaded[0]) || {};
+		var profiles = (loaded && loaded[2]) || [];
+		var profile = profileLabel(profiles);
+		var statusBox = E('div', {}, renderStatus(initial, profile));
 
 		// Refresh status every 5 s while the user is on the page.
 		poll.add(function () {
 			return callStatus('default').then(function (s) {
-				dom.content(statusBox, renderStatus(s));
+				dom.content(statusBox, renderStatus(s, profile));
 			}, function () { /* ignore transient errors */ });
 		}, 5);
 

@@ -21,6 +21,7 @@ mod error;
 pub mod gateway;
 mod jsonp;
 mod models;
+pub mod profiles;
 pub mod tsinghua;
 
 pub use client::Client;
@@ -28,3 +29,4 @@ pub use discover::{discover, Discovered};
 pub use endpoints::Endpoints;
 pub use error::Error;
 pub use models::Status;
+pub use profiles::Profile;

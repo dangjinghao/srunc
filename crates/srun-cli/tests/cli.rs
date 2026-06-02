@@ -39,7 +39,8 @@ fn help_exits_zero_and_lists_subcommands() {
         .stdout(predicate::str::contains("login"))
         .stdout(predicate::str::contains("logout"))
         .stdout(predicate::str::contains("status"))
-        .stdout(predicate::str::contains("keepalive"));
+        .stdout(predicate::str::contains("keepalive"))
+        .stdout(predicate::str::contains("profiles"));
 }
 
 #[test]
@@ -150,6 +151,46 @@ fn status_human_output_for_online() {
         .stdout(predicate::str::contains("● Online"))
         .stdout(predicate::str::contains("bob"))
         .stdout(predicate::str::contains("10.0.0.7"));
+}
+
+#[test]
+fn profiles_list_json_returns_at_least_tsinghua() {
+    let out = srunc()
+        .args(["profiles", "list", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|e| panic!("not valid JSON: {e}\nstdout was: {stdout:?}"));
+    let arr = parsed.as_array().expect("profiles list --json is an array");
+    assert!(!arr.is_empty(), "registry must ship at least one profile");
+    let tsinghua = arr
+        .iter()
+        .find(|p| p["id"] == "tsinghua")
+        .expect("tsinghua profile should ship by default");
+    assert_eq!(tsinghua["host"], "auth4.tsinghua.edu.cn");
+    assert_eq!(tsinghua["ac_id"], "1");
+}
+
+#[test]
+fn unknown_profile_warns_but_doesnt_crash() {
+    // --profile typo: should log a warning and fall through to the rest of
+    // the resolution chain rather than panicking or hard-erroring.
+    let cfg = write_temp_config("");
+    srunc()
+        .args([
+            "-c",
+            cfg.path().to_str().unwrap(),
+            "-D",
+            "--profile",
+            "not-a-real-site",
+            "login",
+        ])
+        .assert()
+        .failure() // still fails on missing creds, not on the bad profile
+        .stderr(predicate::str::contains("username required"));
 }
 
 #[test]

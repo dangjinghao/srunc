@@ -6,11 +6,13 @@
 #   login    {}                     -> {"ok":bool}        # restarts the procd service
 #   logout   {}                     -> {"ok":bool}        # stops the procd service
 #   restart  {}                     -> {"ok":bool}
+#   profiles {}                     -> {"profiles":[{"id","label","host","ac_id"}, ...]}
 #
 # `status` reads `/var/run/srunc/<section>.toml` (rendered by the init script
 # when the daemon is running); falls back to offline if absent. Action methods
 # delegate to /etc/init.d/srunc so the full "render UCI -> TOML -> spawn"
-# pipeline runs in one place.
+# pipeline runs in one place. `profiles` shells out to the binary so the
+# registry stays single-sourced in Rust.
 
 . /usr/share/libubox/jshn.sh
 
@@ -43,7 +45,8 @@ list)
 	json_add_object "status";  json_add_string section "";  json_close_object
 	json_add_object "login";   json_close_object
 	json_add_object "logout";  json_close_object
-	json_add_object "restart"; json_close_object
+	json_add_object "restart";  json_close_object
+	json_add_object "profiles"; json_close_object
 	json_dump
 	;;
 
@@ -91,6 +94,13 @@ call)
 		else
 			reply_fail "init.d restart failed"
 		fi
+		;;
+	profiles)
+		# Defer to the binary so the registry lives in exactly one place.
+		# Output is already an array of {id,label,host,ac_id}; wrap it in
+		# the {profiles: [...]} envelope LuCI expects from an ubus method.
+		out=$("$PROG" profiles list --json 2>/dev/null) || out="[]"
+		printf '{"profiles":%s}\n' "$out"
 		;;
 	*)
 		reply_fail "unknown method"

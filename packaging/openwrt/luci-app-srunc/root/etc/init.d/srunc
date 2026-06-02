@@ -13,7 +13,7 @@ RUNDIR=/var/run/srunc
 
 render_config() {
 	local section="$1"
-	local username password host ac_id ipv6 insecure timeout
+	local username password host ac_id ipv6 insecure timeout profile
 	config_get      username "$section" username
 	config_get      password "$section" password
 	config_get      host     "$section" host
@@ -21,6 +21,7 @@ render_config() {
 	config_get_bool ipv6     "$section" ipv6     0
 	config_get_bool insecure "$section" insecure 0
 	config_get      timeout  "$section" timeout  2
+	config_get      profile  "$section" profile
 
 	mkdir -p "$RUNDIR"
 	chmod 0700 "$RUNDIR"
@@ -28,8 +29,9 @@ render_config() {
 	{
 		printf 'username = "%s"\n' "$username"
 		printf 'password = "%s"\n' "$password"
-		[ -n "$host" ]  && printf 'host = "%s"\n'  "$host"
-		[ -n "$ac_id" ] && printf 'ac_id = "%s"\n' "$ac_id"
+		[ -n "$host" ]    && printf 'host = "%s"\n'    "$host"
+		[ -n "$ac_id" ]   && printf 'ac_id = "%s"\n'   "$ac_id"
+		[ -n "$profile" ] && printf 'profile = "%s"\n' "$profile"
 		[ "$ipv6"     = "1" ] && echo 'ipv6 = true'
 		[ "$insecure" = "1" ] && echo 'insecure = true'
 		printf 'timeout = %s\n' "$timeout"

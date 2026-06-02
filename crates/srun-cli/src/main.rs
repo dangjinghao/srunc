@@ -71,6 +71,11 @@ struct Cli {
     /// Authenticate for a specific IP address (proxy mode).
     #[arg(long, global = true)]
     ip: Option<String>,
+    /// Use a known-deployment profile for default host + ac_id
+    /// (see `srunc profiles list`). Lower priority than explicit
+    /// `--host` / `--ac-id`; higher than auto-discovery.
+    #[arg(long, global = true, value_name = "ID")]
+    profile: Option<String>,
 
     // ---- output ----
     /// Emit machine-readable JSON on success (currently affects `status`).
@@ -124,6 +129,22 @@ enum Cmd {
         #[arg(short, long, default_value_t = 2)]
         retry: u32,
     },
+    /// Manage deployment profiles (built-in host + ac_id for known srun installs).
+    Profiles {
+        #[command(subcommand)]
+        action: ProfilesCmd,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ProfilesCmd {
+    /// List all known deployment profiles.
+    List {
+        /// Emit JSON instead of a human-readable table. Consumed by the
+        /// OpenWrt LuCI app to populate its dropdown.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 // ---------- config + settings ----------
@@ -140,6 +161,7 @@ struct ConfigFile {
     ip: Option<String>,
     timeout: Option<u64>,
     daemonize: bool,
+    profile: Option<String>,
 }
 
 #[derive(Debug)]
@@ -153,6 +175,7 @@ struct Settings {
     ip: String,
     timeout: Duration,
     daemonize: bool,
+    profile: Option<String>,
 }
 
 fn locate_config(explicit: Option<&Path>) -> Option<PathBuf> {
@@ -198,6 +221,11 @@ fn resolve(cli: &Cli) -> Result<Settings> {
         ip: cli.ip.clone().or(cfg.ip).unwrap_or_default(),
         timeout: Duration::from_secs(cli.timeout.or(cfg.timeout).unwrap_or(2)),
         daemonize: cli.daemonize || cfg.daemonize,
+        profile: cli
+            .profile
+            .clone()
+            .or(cfg.profile)
+            .filter(|s| !s.is_empty()),
     })
 }
 
@@ -225,15 +253,42 @@ fn prompt_credentials(s: &mut Settings) -> Result<()> {
 /// Fallback chain (first non-None wins for each):
 ///
 /// 1. Explicit `--host` / `--ac-id` (CLI or TOML).
-/// 2. **Captive-portal discovery**: probe `http://<default-gateway>/` (DNS-free)
+/// 2. **Deployment profile** (`--profile <id>`): a built-in (`host`, `ac_id`)
+///    pair for a known srun installation (Tsinghua, …). Saves users from
+///    looking up portal endpoints by hand. See [`srun_client::profiles`].
+/// 3. **Captive-portal discovery**: probe `http://<default-gateway>/` (DNS-free)
 ///    and read both the auth host AND the ac_id out of the srun redirect.
-///    This is deployment-agnostic — works for any srun campus and survives
-///    routers booting before DNS / auth.
-/// 3. Tsinghua default host (`auth4`/`auth6.tsinghua.edu.cn`, picked by
+///    Deployment-agnostic — works for any srun site, even one with no
+///    profile yet, and survives routers booting before DNS / auth.
+/// 4. Tsinghua default host (`auth4`/`auth6.tsinghua.edu.cn`, picked by
 ///    `--ipv6`) + legacy DNS-based `tsinghua::detect_ac_id` for ac_id.
-/// 4. Final fallback ac_id `"1"` (with a warning unless daemonized).
+/// 5. Final fallback ac_id `"1"` (with a warning unless daemonized).
 fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
-    let need_discovery = s.host.is_none() || s.ac_id.is_none();
+    // Profile is a *passive* layer: it fills holes the user left open, but
+    // never overrides an explicit value. Unknown ids warn and are ignored —
+    // we don't want a typo'd `--profile tsignhua` to silently fall through
+    // to a different deployment via auto-discovery.
+    let profile = s.profile.as_deref().and_then(|id| {
+        let p = srun_client::profiles::by_id(id);
+        if p.is_none() {
+            warn!("unknown profile {id:?}; run `srunc profiles list` for valid ids");
+        }
+        p
+    });
+    if let Some(p) = profile {
+        debug!(
+            "using profile {:?}: host={} ac_id={}",
+            p.id, p.host, p.ac_id
+        );
+    }
+
+    let profile_host = profile.map(|p| p.host.to_string());
+    let profile_ac_id = profile.map(|p| p.ac_id.to_string());
+
+    // Skip the gateway probe if every field is already pinned (explicit or
+    // profile). Probing costs an HTTP request and otherwise just adds latency.
+    let need_discovery = (s.host.is_none() && profile_host.is_none())
+        || (s.ac_id.is_none() && profile_ac_id.is_none());
     let discovered = if need_discovery {
         srun_client::gateway::default_gateway_v4()
             .and_then(|gw| {
@@ -254,19 +309,25 @@ fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
         Default::default()
     };
 
-    let host = s.host.clone().or(discovered.host).unwrap_or_else(|| {
-        if s.ipv6 {
-            "auth6.tsinghua.edu.cn".into()
-        } else {
-            "auth4.tsinghua.edu.cn".into()
-        }
-    });
+    let host = s
+        .host
+        .clone()
+        .or(profile_host)
+        .or(discovered.host)
+        .unwrap_or_else(|| {
+            if s.ipv6 {
+                "auth6.tsinghua.edu.cn".into()
+            } else {
+                "auth4.tsinghua.edu.cn".into()
+            }
+        });
     debug!("using portal host: {host}");
     let endpoints = Endpoints::from_host(&host, s.insecure);
 
     let ac_id = s
         .ac_id
         .clone()
+        .or(profile_ac_id)
         .or(discovered.ac_id)
         .or_else(|| {
             let client = Client::new(endpoints.clone(), s.timeout);
@@ -279,6 +340,29 @@ fn resolve_endpoints_and_ac_id(s: &Settings) -> (Endpoints, String) {
     debug!("using ac_id: {ac_id}");
 
     (endpoints, ac_id)
+}
+
+fn cmd_profiles_list(json: bool) -> Result<()> {
+    let profiles = srun_client::profiles::PROFILES;
+    if json {
+        println!("{}", serde_json::to_string(profiles)?);
+    } else {
+        use anstream::println;
+        use anstyle::Style;
+        let bold = Style::new().bold();
+        let dim = Style::new().dimmed();
+        if profiles.is_empty() {
+            println!("{dim}(no profiles shipped){dim:#}");
+            return Ok(());
+        }
+        for p in profiles {
+            println!("{bold}{}{bold:#}", p.id);
+            println!("  {dim}label{dim:#}  {}", p.label);
+            println!("  {dim}host{dim:#}   {}", p.host);
+            println!("  {dim}ac_id{dim:#}  {}", p.ac_id);
+        }
+    }
+    Ok(())
 }
 
 // ---------- keepalive ----------
@@ -502,6 +586,9 @@ fn main() -> ExitCode {
             interval,
             retry,
         } => cmd_keepalive(&cli, *campus_only, *interval, *retry),
+        Cmd::Profiles { action } => match action {
+            ProfilesCmd::List { json } => cmd_profiles_list(*json),
+        },
     };
 
     match result {

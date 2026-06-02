@@ -1,8 +1,6 @@
-# srunc — srun (深澜) campus-portal auth
+# srunc — srun (深澜) captive-portal auth
 
-Small static-binary authenticator for the **srun** (深澜) captive portal used by TUNET and many other Chinese university networks. Designed for headless servers and routers. Auto-discovers `host` + `ac_id` from the captive redirect; most setups only need username + password.
-
-> Name: `auth` + `thu` (Tsinghua, where the project got its start). The code is deployment-agnostic.
+Small static-binary authenticator for the **srun** (深澜) captive portal used by universities (Tsinghua, Fudan, Zhejiang, …), banks, and corporate networks across China. Designed for headless servers and routers. Auto-discovers `host` + `ac_id` from the captive redirect; most setups only need username + password.
 
 ## Install
 
@@ -32,6 +30,8 @@ srunc login -k           # auth + keep the session alive
 srunc status             # online? user? ip?
 srunc status --json      # machine-readable
 srunc logout
+srunc profiles list      # built-in host + ac_id profiles (e.g. tsinghua)
+srunc --profile tsinghua login  # pick a profile instead of overriding fields
 srunc --help             # all flags (-v / -q / --host / --ac-id / ...)
 ```
 

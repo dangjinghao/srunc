@@ -15,7 +15,11 @@ config srunc 'default'
 	option enabled '1'
 	option username ''
 	option password ''
-	# --- overrides (leave blank for auto-discovery) ---
+	# --- deployment profile (built-in host + ac_id for known srun installs) ---
+	# Leave empty for fully automatic configuration (captive-portal discovery
+	# + Tsinghua fallback). Run `srunc profiles list` for valid ids.
+	option profile ''
+	# --- overrides (leave blank for auto-discovery + profile) ---
 	# option host ''
 	# option ac_id ''
 	# option ipv6 '0'           # use IPv6 portal (only affects Tsinghua fallback)
