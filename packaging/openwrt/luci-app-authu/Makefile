@@ -19,7 +19,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-authu
-PKG_VERSION:=0.2.3
+PKG_VERSION:=0.2.4
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_MAINTAINER:=Yihang Wang <wangyihanger@gmail.com>
@@ -32,6 +32,12 @@ LUCI_DESCRIPTION:=\
   Multi-instance via UCI. Bundles the static-musl `authu` binary; no \
   separate download needed.
 LUCI_DEPENDS:=
+# luci.mk defaults LUCI_PKGARCH to "all" unless `src/Makefile` exists.
+# Setting it to empty here keeps it from being defaulted, leaving PKGARCH
+# unset → luci.mk falls through and BuildPackage picks the SDK's target
+# arch, so we produce one .ipk per architecture (each bundling its own
+# musl binary) instead of a single noarch package.
+LUCI_PKGARCH:=
 
 # Absolute path to luci.mk so the package builds from any feed location
 # (the standard `include ../../luci.mk` only resolves when located inside
