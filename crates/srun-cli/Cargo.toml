@@ -51,8 +51,8 @@ assets = [
 ]
 
 [dependencies]
-srun-core = { path = "../srun-core", version = "0.2.2" }
-srun-client = { path = "../srun", version = "0.2.2" }
+srun-core = { path = "../srun-core", version = "0.2.3" }
+srun-client = { path = "../srun", version = "0.2.3" }
 clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "color", "suggestions", "error-context", "wrap_help"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

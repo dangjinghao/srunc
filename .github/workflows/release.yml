@@ -151,6 +151,11 @@ jobs:
           FEEDNAME: authu
           PACKAGES: luci-app-authu
           V: s
+          # Skip the SDK's opinionated source-tree checks. shfmt nags
+          # at our procd init.d formatting and patch-refresh wants a git
+          # context that doesn't exist inside the SDK container.
+          NO_SHFMT_CHECK: 1
+          NO_REFRESH_CHECK: 1
 
       - name: Stage .ipk
         shell: bash
