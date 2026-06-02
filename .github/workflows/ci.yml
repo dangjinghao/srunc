@@ -36,3 +36,8 @@ jobs:
 
       - name: cargo test (doc-tests)
         run: cargo test --locked --doc
+
+      # Verify the library compiles without the CLI feature — proves we
+      # haven't accidentally leaked clap / anstream / etc. into the lib path.
+      - name: cargo build --no-default-features
+        run: cargo build --locked --no-default-features

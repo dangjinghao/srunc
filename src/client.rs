@@ -5,7 +5,7 @@ use std::time::Duration;
 use log::debug;
 use ureq::{Agent, AgentBuilder};
 
-use srun_core::{build_portal_params, Action, Credentials, PortalError, PortalParams};
+use crate::protocol::{build_portal_params, Action, Credentials, PortalError, PortalParams};
 
 use crate::endpoints::Endpoints;
 use crate::error::Error;

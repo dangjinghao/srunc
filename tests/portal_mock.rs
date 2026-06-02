@@ -9,8 +9,7 @@ use std::time::Duration;
 
 use httpmock::prelude::*;
 
-use srun_client::{Client, Endpoints};
-use srun_core::Credentials;
+use srunc::{Client, Credentials, Endpoints};
 
 fn endpoints_for(server: &MockServer) -> Endpoints {
     // `from_host` builds `https://...`; the mock is plain HTTP, so build

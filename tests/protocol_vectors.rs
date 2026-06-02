@@ -6,7 +6,7 @@
 //! produced by the Go reference for the inputs documented below (see
 //! `the project README` for the one-line regeneration recipe).
 
-use srun_core::{
+use srunc::protocol::{
     build_portal_params, md5_hex, quirk_base64, sha1_hex, xencode, Action, Credentials,
 };
 

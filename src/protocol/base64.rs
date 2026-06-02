@@ -2,9 +2,6 @@
 //! quirks (it reads the 3-byte group in reverse and pads slightly differently).
 //! Faithful port of `libauth.QuirkBase64Encode` (coding.go).
 
-use alloc::string::String;
-use alloc::vec::Vec;
-
 const ALPHABET: &[u8; 64] = b"LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA";
 
 /// Encode arbitrary bytes using srun's custom base64 variant.

@@ -5,8 +5,6 @@
 //! plaintext byte-length appended as the final word, and serializes the result
 //! back to little-endian bytes without truncation.
 
-use alloc::{vec, vec::Vec};
-
 const DELTA: u32 = 0x9E37_79B9;
 
 /// Encrypt `data` under `key` (the challenge token). Returns the raw cipher bytes.

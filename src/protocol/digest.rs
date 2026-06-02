@@ -2,7 +2,6 @@
 //! implementations rather than hand-rolling hashes (matching Go's
 //! `crypto/md5` + `crypto/sha1`).
 
-use alloc::string::String;
 use md5::Md5;
 use sha1::{Digest, Sha1};
 

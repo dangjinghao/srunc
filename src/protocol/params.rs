@@ -2,10 +2,9 @@
 //! `libauth.buildLoginParams` (coding.go), kept as a pure function so it can be
 //! pinned to the Go reference output in tests.
 
-use crate::base64::quirk_base64;
-use crate::digest::{md5_hex, sha1_hex};
-use crate::xencode::xencode;
-use alloc::string::String;
+use super::base64::quirk_base64;
+use super::digest::{md5_hex, sha1_hex};
+use super::xencode::xencode;
 
 const ENC_VER: &str = "srun_bx1";
 const N: &str = "200";
@@ -44,8 +43,8 @@ pub struct PortalParams {
 impl PortalParams {
     /// The (key, value) pairs to URL-encode, in a stable order. The imperative
     /// shell turns these into the actual query string.
-    pub fn to_pairs(&self) -> alloc::vec::Vec<(&str, &str)> {
-        let mut pairs = alloc::vec![
+    pub fn to_pairs(&self) -> Vec<(&str, &str)> {
+        let mut pairs = vec![
             ("action", self.action.as_str()),
             ("username", self.username.as_str()),
             ("ac_id", self.ac_id.as_str()),

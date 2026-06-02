@@ -1,9 +1,8 @@
-//! End-to-end tests for the `srunc` binary.
-//!
-//! `assert_cmd` spawns the actual built binary, `tempfile` provides scratch
-//! configs (so we never touch the user's real `~/.config/srunc/`), and
-//! `httpmock` simulates a srun portal so we can exercise the full
-//! resolve-endpoints → HTTP → JSON-output pipeline.
+//! End-to-end tests for the `srunc` binary. Skipped under
+//! `--no-default-features` since the binary isn't built without the `cli`
+//! feature.
+
+#![cfg(feature = "cli")]
 
 use std::io::Write;
 

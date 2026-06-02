@@ -1,10 +1,6 @@
-//! `srunc` — srun (深澜) campus-portal CLI.
+//! `srunc` binary — srun (深澜) captive-portal CLI.
 //!
 //! Subcommands: `login` / `logout` / `status` / `profiles`.
-//!
-//! The hard, side-effect-free crypto lives in `srun-core`; the HTTP client
-//! and discovery live in `srun-client`. This binary is the thin imperative
-//! shell on top.
 
 use std::fs;
 use std::io::Write;
@@ -19,8 +15,7 @@ use clap::{Parser, Subcommand};
 use log::{debug, info, warn, LevelFilter};
 use serde::Deserialize;
 
-use srun_client::{Client, Endpoints};
-use srun_core::Credentials;
+use srunc::{Client, Credentials, Endpoints};
 
 // ---------- CLI ----------
 
@@ -244,7 +239,7 @@ struct Resolved {
 /// fail to yield a value, rather than silently picking a stale default.
 fn resolve_target(s: &Settings) -> Result<Resolved> {
     let profile = s.profile.as_deref().and_then(|id| {
-        let p = srun_client::profiles::by_id(id);
+        let p = srunc::profiles::by_id(id);
         if p.is_none() {
             warn!("unknown profile {id:?}; run `srunc profiles list` for valid ids");
         }
@@ -256,10 +251,10 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
     let need_discovery = (s.host.is_none() && profile_host.is_none())
         || (s.ac_id.is_none() && profile_ac_id.is_none());
     let discovered = if need_discovery {
-        srun_client::gateway::default_gateway_v4()
+        srunc::gateway::default_gateway_v4()
             .and_then(|gw| {
                 info!("probing gateway {gw} for srun portal hints");
-                match srun_client::discover(&gw, s.timeout) {
+                match srunc::discover(&gw, s.timeout) {
                     Ok(d) => Some(d),
                     Err(e) => {
                         debug!("gateway probe failed: {e}");
@@ -306,7 +301,7 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
 }
 
 fn cmd_profiles_list(json: bool) -> Result<()> {
-    let profiles = srun_client::profiles::PROFILES;
+    let profiles = srunc::profiles::PROFILES;
     if json {
         println!("{}", serde_json::to_string(profiles)?);
     } else {
@@ -446,7 +441,7 @@ fn cmd_status(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn print_status_human(st: &srun_client::Status) {
+fn print_status_human(st: &srunc::Status) {
     use anstream::println;
     use anstyle::{AnsiColor, Style};
     let green = Style::new().fg_color(Some(AnsiColor::Green.into())).bold();
@@ -484,10 +479,7 @@ fn init_logger(verbose: u8, quiet: u8, daemonize: bool) {
 
     let mut b = env_logger::Builder::new();
     b.filter_level(LevelFilter::Warn);
-    // binary's [[bin]] name is `srunc`, not the package name `srun_cli`.
     b.filter_module("srunc", our_level);
-    b.filter_module("srun_client", our_level);
-    b.filter_module("srun_core", our_level);
     if let Ok(spec) = std::env::var("RUST_LOG") {
         b.parse_filters(&spec);
     }

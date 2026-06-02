@@ -1,21 +1,14 @@
 //! Generic captive-portal discovery for srun deployments.
 //!
-//! Probes an HTTP endpoint that an unauthenticated srun gateway redirects to its
-//! portal, then parses the redirect for the auth host AND the `ac_id`. This is
-//! deployment-agnostic (works for any srun campus) and DNS-free when the probe
-//! target is an IP — which is what we need for headless routers that have no
-//! working DNS until *after* authentication.
+//! One plaintext HTTP probe of the gateway IP — DNS-free — returns a redirect
+//! that encodes both the auth host (`Location`) and the segment-correct
+//! `ac_id` (`index_<N>.html` / `?ac_id=<N>`). Two pieces of config from one
+//! request, works on any srun campus, survives routers that have no DNS
+//! until after authentication.
 //!
-//! The fundamental trick: when an unauthenticated client makes any plaintext
-//! HTTP request, the gateway intercepts and returns a redirect that encodes
-//! both the auth host (the redirect target) and the segment-correct `ac_id`
-//! (`index_<N>.html` / `?ac_id=<N>`). One probe → both pieces of config.
-//!
-//! See `crates/srun/tests/discover_vectors.rs` for the recognized shapes.
-//!
-//! For Tsinghua, hitting the default gateway by IP (`http://101.6.40.1/`) is
-//! known to yield the SEGMENT-correct ac_id; hitting `auth4.tsinghua.edu.cn`'s
-//! root only yields a generic `ac_id=1` that often doesn't match the segment.
+//! Probing the gateway IP (e.g. `http://101.6.40.1/`) yields the
+//! segment-correct ac_id; probing the auth host's root often yields a
+//! generic `ac_id=1` that doesn't match the network segment.
 
 use std::time::Duration;
 
