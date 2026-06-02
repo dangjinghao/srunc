@@ -136,12 +136,17 @@ jobs:
 
       - name: Stage binary into the package
         run: |
+          # luci.mk auto-installs everything under root/* → / on the target,
+          # preserving executable bits via `cp -pR`. Drop the binary at
+          # root/usr/sbin/authu — no custom INSTALL_BIN rule needed (and any
+          # custom Package/luci-app-authu/install we define would be clobbered
+          # by luci.mk's unconditional template anyway).
           tar -xzf prebuilt/authu-${{ matrix.musl_target }}.tar.gz -C prebuilt/
-          mkdir -p packaging/openwrt/luci-app-authu/files
+          mkdir -p packaging/openwrt/luci-app-authu/root/usr/sbin
           cp prebuilt/authu-${{ matrix.musl_target }}/authu \
-             packaging/openwrt/luci-app-authu/files/authu
-          chmod +x packaging/openwrt/luci-app-authu/files/authu
-          ls -la packaging/openwrt/luci-app-authu/files/
+             packaging/openwrt/luci-app-authu/root/usr/sbin/authu
+          chmod +x packaging/openwrt/luci-app-authu/root/usr/sbin/authu
+          ls -la packaging/openwrt/luci-app-authu/root/usr/sbin/
 
       - name: Build .ipk via openwrt SDK
         uses: openwrt/gh-action-sdk@main

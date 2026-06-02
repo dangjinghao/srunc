@@ -19,7 +19,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-authu
-PKG_VERSION:=0.2.4
+PKG_VERSION:=0.2.5
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_MAINTAINER:=Yihang Wang <wangyihanger@gmail.com>
@@ -48,22 +48,11 @@ define Package/luci-app-authu/conffiles
 /etc/config/authu
 endef
 
-define Package/luci-app-authu/install
-	$(INSTALL_DIR)  $(1)/etc/config
-	$(INSTALL_DIR)  $(1)/etc/init.d
-	$(INSTALL_DIR)  $(1)/usr/libexec/rpcd
-	$(INSTALL_DIR)  $(1)/usr/sbin
-	$(INSTALL_DIR)  $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DIR)  $(1)/usr/share/luci/menu.d
-	$(INSTALL_DIR)  $(1)/www/luci-static/resources/view/authu
-	$(INSTALL_CONF) ./root/etc/config/authu                              $(1)/etc/config/authu
-	$(INSTALL_BIN)  ./root/etc/init.d/authu                              $(1)/etc/init.d/authu
-	$(INSTALL_BIN)  ./root/usr/libexec/rpcd/authu                        $(1)/usr/libexec/rpcd/authu
-	$(INSTALL_BIN)  ./files/authu                                        $(1)/usr/sbin/authu
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-authu.json      $(1)/usr/share/rpcd/acl.d/luci-app-authu.json
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-authu.json     $(1)/usr/share/luci/menu.d/luci-app-authu.json
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/authu/*.js       $(1)/www/luci-static/resources/view/authu/
-endef
+# No custom Package/.../install rule: luci.mk unconditionally redefines it
+# (the user-defined version is silently overwritten — that's why we need to
+# stay on the convention). Its default copies root/* → / and
+# htdocs/* → /www/ preserving permissions, which covers every file we ship,
+# including the per-arch `authu` binary that CI stages at root/usr/sbin/authu.
 
 define Package/luci-app-authu/postinst
 #!/bin/sh
