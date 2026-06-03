@@ -39,7 +39,7 @@ var callProfiles = rpc.declare({
 
 // Resolve the configured `profile` id (default instance) into its human
 // label. Returns null when no profile is selected (Custom / auto) — caller
-// suppresses the row entirely rather than showing an empty separator.
+// suppresses the badge entirely rather than showing an empty one.
 function profileLabel(profiles) {
 	var id = uci.get('srunc', 'default', 'profile') || '';
 	if (!id) return null;
@@ -49,31 +49,50 @@ function profileLabel(profiles) {
 	return id;
 }
 
-function renderStatus(s, profileName) {
+// Scoped styling for the status card. Translucent backgrounds keep it legible
+// on both light and dark LuCI themes.
+function statusStyle() {
+	return E('style', { 'type': 'text/css' }, [
+		'.srunc-status{display:flex;align-items:center;gap:.55em;flex-wrap:wrap;margin:.3em 0 1em}',
+		'.srunc-pill{display:inline-flex;align-items:center;gap:.45em;padding:.28em .9em;border-radius:999px;font-weight:600;line-height:1.5;border:1px solid transparent}',
+		'.srunc-on{color:#1a8f3c;background:rgba(40,160,70,.14);border-color:rgba(40,160,70,.40)}',
+		'.srunc-off{color:#8a8a8a;background:rgba(128,128,128,.14);border-color:rgba(128,128,128,.38)}',
+		'.srunc-dot{width:.58em;height:.58em;border-radius:50%;background:currentColor;flex:0 0 auto}',
+		'.srunc-badge{display:inline-flex;align-items:center;padding:.2em .6em;border-radius:6px;background:rgba(128,128,128,.15);font-size:.85em;font-weight:500}',
+		'.srunc-kv{border-collapse:collapse;margin:.1em 0}',
+		'.srunc-kv td{padding:.22em 1.4em .22em 0;vertical-align:top}',
+		'.srunc-kv .srunc-k{opacity:.6;white-space:nowrap}',
+		'.srunc-kv .srunc-v{font-weight:500}',
+		'.srunc-actions{display:flex;flex-wrap:wrap;gap:.5em}'
+	].join('\n'));
+}
+
+function renderStatus(s, profileName, keepalive) {
 	s = s || {};
 	var online = !!s.online;
-	var dot = online ? '●' : '○';
-	var label = online ? _('Online') : _('Offline');
-	var color = online ? '#2a8c2a' : '#a33';
 
-	var headline = dot + ' ' + label;
-	if (profileName) headline += '  —  ' + profileName;
-
-	var children = [
-		E('div', {
-			'style': 'font-size: 1.4em; font-weight: 600; color: ' + color + ';'
-		}, headline)
+	var head = [
+		E('span', { 'class': 'srunc-pill ' + (online ? 'srunc-on' : 'srunc-off') }, [
+			E('span', { 'class': 'srunc-dot' }),
+			online ? _('Online') : _('Offline')
+		])
 	];
+	if (profileName)
+		head.push(E('span', { 'class': 'srunc-badge' }, profileName));
+	if (online && keepalive)
+		head.push(E('span', { 'class': 'srunc-badge' }, _('keepalive')));
+
+	var children = [ E('div', { 'class': 'srunc-status' }, head) ];
 
 	if (online) {
-		children.push(E('table', { 'class': 'table' }, [
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td left', 'width': '120' }, _('User')),
-				E('td', { 'class': 'td left' }, s.username || '?')
+		children.push(E('table', { 'class': 'srunc-kv' }, [
+			E('tr', {}, [
+				E('td', { 'class': 'srunc-k' }, _('User')),
+				E('td', { 'class': 'srunc-v' }, s.username || '?')
 			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td left' }, _('IP')),
-				E('td', { 'class': 'td left' }, s.ip || '?')
+			E('tr', {}, [
+				E('td', { 'class': 'srunc-k' }, _('IP')),
+				E('td', { 'class': 'srunc-v' }, s.ip || '?')
 			])
 		]));
 	}
@@ -114,16 +133,18 @@ return view.extend({
 		var initial = (loaded && loaded[0]) || {};
 		var profiles = (loaded && loaded[2]) || [];
 		var profile = profileLabel(profiles);
-		var statusBox = E('div', {}, renderStatus(initial, profile));
+		var keepalive = (uci.get('srunc', 'default', 'keepalive') !== '0');
+		var statusBox = E('div', {}, renderStatus(initial, profile, keepalive));
 
 		// Refresh status every 5 s while the user is on the page.
 		poll.add(function () {
 			return callStatus('default').then(function (s) {
-				dom.content(statusBox, renderStatus(s, profile));
+				dom.content(statusBox, renderStatus(s, profile, keepalive));
 			}, function () { /* ignore transient errors */ });
 		}, 5);
 
 		return E([], [
+			statusStyle(),
 			E('h2', {}, _('srunc')),
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('Status')),
@@ -131,12 +152,7 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('Actions')),
-				// Plain flex row — NOT cbi-page-actions, which flex-grows the
-				// middle child (it's meant for the Save & Apply bar at the
-				// bottom of forms). We want three same-sized inline buttons.
-				E('div', {
-					'style': 'display: flex; flex-wrap: wrap; gap: 0.5em;'
-				}, [
+				E('div', { 'class': 'srunc-actions' }, [
 					E('button', {
 						'class': 'btn cbi-button-action',
 						'click': ui.createHandlerFn(this, runAction, _('login'), callLogin)

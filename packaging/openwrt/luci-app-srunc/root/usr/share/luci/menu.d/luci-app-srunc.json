@@ -25,5 +25,13 @@
 			"type": "view",
 			"path": "srunc/settings"
 		}
+	},
+	"admin/services/srunc/log": {
+		"title": "Log",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "srunc/log"
+		}
 	}
 }

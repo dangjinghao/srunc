@@ -43,6 +43,7 @@ case "$1" in
 list)
 	json_init
 	json_add_object "status";  json_add_string section "";  json_close_object
+	json_add_object "log";     json_add_int lines 0; json_close_object
 	json_add_object "login";   json_close_object
 	json_add_object "logout";  json_close_object
 	json_add_object "restart";  json_close_object
@@ -94,6 +95,16 @@ call)
 		else
 			reply_fail "init.d restart failed"
 		fi
+		;;
+	log)
+		# Recent srunc messages from the system log. Read-only; covers both
+		# procd-captured daemon output and the init.d `logger -t srunc` lines.
+		json_get_var lines lines
+		lines="${lines:-200}"
+		out=$(logread -e srunc 2>/dev/null | tail -n "$lines")
+		json_init
+		json_add_string log "$out"
+		json_dump
 		;;
 	profiles)
 		# Defer to the binary so the registry lives in exactly one place.
