@@ -1,6 +1,6 @@
-//! Assembly of the srun portal login/logout parameters. Faithful port of
-//! `libauth.buildLoginParams` (coding.go), kept as a pure function so it can be
-//! pinned to the Go reference output in tests.
+//! Assembly of the srun portal login/logout parameters. Kept as a pure
+//! function so its byte output can be pinned by the golden vectors in
+//! `tests/protocol_vectors.rs`.
 
 use super::base64::quirk_base64;
 use super::digest::{md5_hex, sha1_hex};

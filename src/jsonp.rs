@@ -1,5 +1,4 @@
 //! Strip a `callback(...)` JSONP wrapper and return the inner JSON.
-//! Faithful port of `libauth.extractJSONFromJSONP`.
 
 use crate::Error;
 

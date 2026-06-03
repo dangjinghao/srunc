@@ -1,5 +1,5 @@
 //! `XEncode` — the srun portal's XXTEA-variant block cipher, keyed by the
-//! per-session challenge token. Faithful port of `libauth.XEncode` (coding.go).
+//! per-session challenge token.
 //!
 //! Note: srun's variant operates on a little-endian `u32` word array with the
 //! plaintext byte-length appended as the final word, and serializes the result

@@ -1,6 +1,5 @@
 //! `QuirkBase64Encode` — base64 with srun's shuffled alphabet and a couple of
 //! quirks (it reads the 3-byte group in reverse and pads slightly differently).
-//! Faithful port of `libauth.QuirkBase64Encode` (coding.go).
 
 const ALPHABET: &[u8; 64] = b"LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA";
 

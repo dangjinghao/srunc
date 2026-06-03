@@ -25,7 +25,7 @@ src/
 └── profiles.rs        built-in {host, ac_id} for known srun deployments
 
 tests/
-├── protocol_vectors.rs    pinned vectors from the upstream Go reference
+├── protocol_vectors.rs    pinned byte-for-byte golden vectors for the protocol primitives
 ├── portal_mock.rs         httpmock-based Client tests
 └── cli.rs                 end-to-end CLI tests
 ```
@@ -34,7 +34,7 @@ Library users opt out of the binary's deps with `cargo add srunc --no-default-fe
 
 ## Why this shape
 
-- **Crypto provably equivalent to Go.** `tests/protocol_vectors.rs` pins XEncode / QuirkBase64Encode / `build_portal_params` byte-for-byte against [`z4yx/GoAuthing`](https://github.com/z4yx/GoAuthing).
+- **Crypto pinned by golden vectors.** `tests/protocol_vectors.rs` pins XEncode / QuirkBase64Encode / `build_portal_params` byte-for-byte, so any subtle change to encoding, padding, word order, or parameter assembly fails CI immediately.
 - **No global mutable state.** Timeout and HTTP agent live on `Client`.
 - **Typed portal errors.** `PortalError::from_code` returns `WrongPassword` / `AlreadyOnline` / … instead of string compares.
 - **Sync I/O via `ureq` + `rustls`, no tokio** — one keep-alive timer doesn't justify an async runtime.
@@ -81,7 +81,3 @@ Most actively-supported OpenWrt devices in the past five years are armv7 / aarch
 The OpenWrt LuCI dropdown picks new profiles up automatically via `ubus call srunc profiles` (no JS change needed).
 
 A remote / network profile list was considered and rejected: profiles change rarely, and a network dependency for a settings-page dropdown adds meaningful supply-chain surface for nothing.
-
-## Regenerating the end-to-end vector
-
-The base64 / XEncode vectors are copied verbatim from `libauth/coding_test.go` in [`z4yx/GoAuthing`](https://github.com/z4yx/GoAuthing). The `build_portal_params` vector was produced from the Go reference. To regenerate, add a throwaway test in package `libauth` that calls `buildLoginParams("hello", "pass", "<token>", false, "", "1")`, prints `info` / `chksum`, then `go test ./libauth -run <name> -v`.

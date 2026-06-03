@@ -1,6 +1,5 @@
-//! MD5 / SHA1 lowercase-hex helpers. We reuse the audited RustCrypto
-//! implementations rather than hand-rolling hashes (matching Go's
-//! `crypto/md5` + `crypto/sha1`).
+//! MD5 / SHA1 lowercase-hex helpers, backed by the audited RustCrypto
+//! implementations.
 
 use md5::Md5;
 use sha1::{Digest, Sha1};
@@ -15,14 +14,14 @@ fn to_hex(bytes: &[u8]) -> String {
     s
 }
 
-/// Lowercase hex of SHA1(data). Mirrors `libauth.sha1sum`.
+/// Lowercase hex of SHA1(data).
 pub fn sha1_hex(data: &[u8]) -> String {
     let mut h = Sha1::new();
     h.update(data);
     to_hex(h.finalize().as_slice())
 }
 
-/// Lowercase hex of MD5(data). Mirrors Go's `fmt.Sprintf("%032x", md5.Sum(..))`.
+/// Lowercase hex of MD5(data).
 pub fn md5_hex(data: &[u8]) -> String {
     let mut h = Md5::new();
     h.update(data);

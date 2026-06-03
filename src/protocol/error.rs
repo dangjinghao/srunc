@@ -1,5 +1,4 @@
-//! Typed view over srun portal `error` / `ecode` responses. Port of the
-//! `PortalError` table in `libauth/messages.go`.
+//! Typed view over srun portal `error` / `ecode` responses.
 //!
 //! Because the core is `no_std`, this implements `core::fmt::Display` rather than
 //! `std::error::Error`; the std shell can wrap it however it likes.

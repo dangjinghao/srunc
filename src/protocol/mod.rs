@@ -1,6 +1,6 @@
 //! Pure, side-effect-free core of the srun (深澜) auth protocol — XEncode,
-//! quirk-base64, digests, and login/logout parameter assembly. Pinned to the
-//! upstream Go reference's byte output by `tests/protocol_vectors.rs`.
+//! quirk-base64, digests, and login/logout parameter assembly. Byte output is
+//! pinned by the golden vectors in `tests/protocol_vectors.rs`.
 
 mod base64;
 mod digest;
