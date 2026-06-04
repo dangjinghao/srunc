@@ -13,10 +13,13 @@ pub struct Status {
     pub online: bool,
     pub username: Option<String>,
     pub ip: Option<String>,
-    /// Populated only when the portal host is on the verified-schema list
-    /// (currently just Tsinghua's `auth4.tsinghua.edu.cn`). `None` means
-    /// "we got a response but don't trust the field semantics here" — UIs
-    /// should suppress detail rows in that case.
+    /// What `resolve_target` actually picked — handy for the LuCI dashboard
+    /// to show without log-scraping. Populated by the CLI's status command.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_ac_id: Option<String>,
+    /// Populated only when the portal host is on the verified-schema list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<StatusDetails>,
 }

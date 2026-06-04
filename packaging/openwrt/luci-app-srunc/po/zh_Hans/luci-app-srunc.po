@@ -346,3 +346,53 @@ msgstr "服务运行中"
 
 msgid "Service stopped"
 msgstr "服务已停止"
+
+# ---- dashboard additions (0.6.0) ----
+
+msgid "daemon up"
+msgstr "守护进程运行"
+
+msgid "gateway"
+msgstr "网关"
+
+msgid "Plan & quota"
+msgstr "套餐与配额"
+
+msgid "IPv4"
+msgstr "IPv4"
+
+msgid "Last kp"
+msgstr "上次保活"
+
+msgid "Billing"
+msgstr "计费策略"
+
+msgid "↓ in"
+msgstr "↓ 入"
+
+msgid "↑ out"
+msgstr "↑ 出"
+
+msgid "Time used"
+msgstr "已用时长"
+
+msgid "Balance"
+msgstr "余额"
+
+msgid "Active since"
+msgstr "开通日期"
+
+msgid "auto-discover"
+msgstr "自动识别"
+
+msgid "Recent log (last %d lines)"
+msgstr "近期日志（最近 %d 行）"
+
+msgid "Open Log →"
+msgstr "查看完整日志 →"
+
+msgid "Enter your portal credentials below and click Save & Apply."
+msgstr "在下方填入校园网账号密码，然后点击 Save & Apply。"
+
+msgid "Configuration applied."
+msgstr "配置已保存。"

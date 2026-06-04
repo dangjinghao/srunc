@@ -1,5 +1,6 @@
 'use strict';
 'require view';
+'require form';
 'require rpc';
 'require uci';
 'require poll';
@@ -12,94 +13,21 @@ var callStatus = rpc.declare({
 	params: [ 'section' ],
 	expect: { '': {} }
 });
-
-var callLogin = rpc.declare({
+var callLogout = rpc.declare({ object: 'srunc', method: 'logout',  expect: { '': {} } });
+var callRestart = rpc.declare({ object: 'srunc', method: 'restart', expect: { '': {} } });
+var callProfiles = rpc.declare({ object: 'srunc', method: 'profiles', expect: { profiles: [] } });
+var callDiscover = rpc.declare({ object: 'srunc', method: 'discover', expect: { '': {} } });
+var callServiceStatus = rpc.declare({ object: 'srunc', method: 'service_status', expect: { '': {} } });
+var callVersion = rpc.declare({ object: 'srunc', method: 'version', expect: { '': {} } });
+var callLog = rpc.declare({
 	object: 'srunc',
-	method: 'login',
-	expect: { '': {} }
+	method: 'log',
+	params: [ 'lines' ],
+	expect: { log: '' }
 });
 
-var callLogout = rpc.declare({
-	object: 'srunc',
-	method: 'logout',
-	expect: { '': {} }
-});
+// --- formatting helpers (mirror the CLI's print_status_human helpers) -----
 
-var callRestart = rpc.declare({
-	object: 'srunc',
-	method: 'restart',
-	expect: { '': {} }
-});
-
-var callProfiles = rpc.declare({
-	object: 'srunc',
-	method: 'profiles',
-	expect: { profiles: [] }
-});
-
-// Resolve the configured `profile` id (default instance) into its human
-// label. Returns null when no profile is selected (Custom / auto) — caller
-// suppresses the badge entirely rather than showing an empty one.
-function profileLabel(profiles) {
-	var id = uci.get('srunc', 'default', 'profile') || '';
-	if (!id) return null;
-	for (var i = 0; i < profiles.length; i++) {
-		if (profiles[i].id === id) return profiles[i].label;
-	}
-	return id;
-}
-
-// Resolve which portal host will actually be queried. Matches the daemon's
-// resolution chain: explicit host (UCI) > profile.host > "auto-discovered".
-// Returned object is { label, source } where source is one of
-// 'explicit' | 'profile' | 'auto', so the UI can dim the auto case.
-function resolvedPortal(profiles) {
-	var explicit = (uci.get('srunc', 'default', 'host') || '').trim();
-	if (explicit) return { label: explicit, source: 'explicit' };
-	var pid = uci.get('srunc', 'default', 'profile') || '';
-	if (pid) {
-		for (var i = 0; i < profiles.length; i++) {
-			if (profiles[i].id === pid && profiles[i].host) {
-				return { label: profiles[i].host, source: 'profile' };
-			}
-		}
-	}
-	return { label: _('auto-discovered'), source: 'auto' };
-}
-
-// Scoped styling for the status card. Translucent backgrounds keep it legible
-// on both light and dark LuCI themes.
-function statusStyle() {
-	return E('style', { 'type': 'text/css' }, [
-		'.srunc-status{display:flex;align-items:center;gap:.55em;flex-wrap:wrap;margin:.3em 0 1em}',
-		'.srunc-pill{display:inline-flex;align-items:center;gap:.45em;padding:.28em .9em;border-radius:999px;font-weight:600;line-height:1.5;border:1px solid transparent}',
-		'.srunc-on{color:#1a8f3c;background:rgba(40,160,70,.14);border-color:rgba(40,160,70,.40)}',
-		'.srunc-off{color:#8a8a8a;background:rgba(128,128,128,.14);border-color:rgba(128,128,128,.38)}',
-		'.srunc-dot{width:.58em;height:.58em;border-radius:50%;background:currentColor;flex:0 0 auto}',
-		'.srunc-badge{display:inline-flex;align-items:center;padding:.2em .6em;border-radius:6px;background:rgba(128,128,128,.15);font-size:.85em;font-weight:500}',
-		'.srunc-kv{border-collapse:collapse;margin:.1em 0}',
-		'.srunc-kv td{padding:.22em 1.4em .22em 0;vertical-align:top}',
-		'.srunc-kv .srunc-k{opacity:.6;white-space:nowrap}',
-		'.srunc-kv .srunc-v{font-weight:500}',
-		'.srunc-v .srunc-auto{opacity:.6;font-style:italic;font-weight:400}',
-		// Click-to-copy button: a small inline icon button next to copyable
-		// values (user / ip / mac). Stays out of the way until you hover.
-		'.srunc-copy{display:inline-flex;align-items:center;gap:.3em;margin-left:.5em;padding:0 .35em;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font-size:.85em;opacity:.45;transition:opacity .15s,border-color .15s}',
-		'.srunc-kv tr:hover .srunc-copy,.srunc-copy:focus,.srunc-copy:hover{opacity:1;border-color:rgba(128,128,128,.4)}',
-		// Multi-device table.
-		'.srunc-devices{margin:.6em 0 .2em;border-collapse:collapse;font-size:.9em;width:auto}',
-		'.srunc-devices th,.srunc-devices td{padding:.3em .9em .3em 0;text-align:left;vertical-align:top}',
-		'.srunc-devices th{opacity:.6;font-weight:500;border-bottom:1px solid rgba(128,128,128,.25)}',
-		'.srunc-devices .srunc-current{font-weight:600;background:rgba(40,160,70,.10)}',
-		'.srunc-devices-cap{margin:.7em 0 .25em;font-weight:600;opacity:.8}',
-		// First-run "setup required" banner — non-blocking, dismissible
-		// only by configuring credentials.
-		'.srunc-setup{display:flex;align-items:center;gap:.8em;padding:.7em 1em;margin-bottom:.8em;border-radius:8px;background:rgba(240,180,40,.15);border:1px solid rgba(240,180,40,.45);color:inherit}',
-		'.srunc-setup .srunc-setup-icon{font-size:1.4em;line-height:1}'
-	].join('\n'));
-}
-
-// Format bytes as IEC units (KiB/MiB/GiB/...). Matches the CLI's format_bytes.
 function fmtBytes(n) {
 	if (typeof n !== 'number' || !isFinite(n)) return null;
 	if (n < 1024) return n + ' B';
@@ -108,8 +36,6 @@ function fmtBytes(n) {
 	while (v >= 1024 && u + 1 < units.length) { v /= 1024; u += 1; }
 	return v.toFixed(2) + ' ' + units[u];
 }
-
-// Coarse duration: "Xd Yh", "Yh Zm", or "Zm". Matches the CLI's format_seconds.
 function fmtSeconds(s) {
 	if (typeof s !== 'number' || !isFinite(s)) return null;
 	var d = Math.floor(s / 86400);
@@ -119,8 +45,6 @@ function fmtSeconds(s) {
 	if (h > 0) return h + 'h ' + m + 'm';
 	return m + 'm';
 }
-
-// "just now" / "Xs ago" / ... — same buckets as the CLI's format_ago.
 function fmtAgo(ts) {
 	if (typeof ts !== 'number' || !isFinite(ts)) return null;
 	var now = Math.floor(Date.now() / 1000);
@@ -132,10 +56,17 @@ function fmtAgo(ts) {
 	if (d < 86400) return Math.floor(d / 3600) + 'h ' + _('ago');
 	return Math.floor(d / 86400) + 'd ' + _('ago');
 }
+function fmtDate(ts) {
+	if (typeof ts !== 'number' || !isFinite(ts) || ts <= 0) return null;
+	return new Date(ts * 1000).toISOString().slice(0, 10);
+}
+function fmtUptime(sec) {
+	if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return null;
+	return fmtSeconds(sec);
+}
 
-// Copy `text` to clipboard with a graceful fallback for non-secure-context
-// LuCI installs (plain HTTP on the LAN). Promise resolves on success,
-// rejects with an Error otherwise — caller toasts both outcomes.
+// --- clipboard ------------------------------------------------------------
+
 function copyText(text) {
 	if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
 		return navigator.clipboard.writeText(text);
@@ -155,9 +86,6 @@ function copyText(text) {
 		} catch (e) { reject(e); }
 	});
 }
-
-// Small inline copy button. Returns null (not an empty element) when
-// there's nothing to copy, so callers can spread it conditionally.
 function copyBtn(text) {
 	if (!text) return null;
 	var btn = E('button', {
@@ -177,10 +105,25 @@ function copyBtn(text) {
 	return btn;
 }
 
+// --- resolved-portal lookup (config side; the daemon side now also
+// surfaces resolved_host / resolved_ac_id in status JSON) -----------------
+
+function profileLabel(profiles) {
+	var id = uci.get('srunc', 'default', 'profile') || '';
+	if (!id) return null;
+	for (var i = 0; i < profiles.length; i++) {
+		if (profiles[i].id === id) return profiles[i].label;
+	}
+	return id;
+}
+
+// --- KV rows --------------------------------------------------------------
+
 function kvRow(k, v, opts) {
 	opts = opts || {};
+	if (v === null || v === undefined || v === '') return null;
 	var children = [ v ];
-	if (opts.copyable && typeof v === 'string' && v && v !== '?') {
+	if (opts.copyable && typeof v === 'string' && v !== '?') {
 		children.push(copyBtn(v));
 	}
 	if (opts.auto) {
@@ -192,10 +135,169 @@ function kvRow(k, v, opts) {
 	]);
 }
 
-// Render the multi-device sub-table from status.details.devices. Hidden
-// when only one device is online — clutter for the common case. The row
-// matching status.details.online_ip (or .ip if that's absent) is highlighted.
-function renderDevices(devices, currentIp) {
+// --- styles ---------------------------------------------------------------
+
+function dashboardStyle() {
+	return E('style', { 'type': 'text/css' }, [
+		// header / footer
+		'.srunc-header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:1em;margin:.2em 0 1em}',
+		'.srunc-header h2{margin:0}',
+		'.srunc-meta{opacity:.7;font-size:.85em;font-family:ui-monospace,Menlo,Consolas,monospace}',
+		'.srunc-footer{margin-top:1.5em;padding-top:.6em;border-top:1px solid rgba(128,128,128,.25);opacity:.65;font-size:.8em;font-family:ui-monospace,Menlo,Consolas,monospace}',
+		// status hero
+		'.srunc-status{display:flex;align-items:center;gap:.55em;flex-wrap:wrap;margin:.3em 0 1em}',
+		'.srunc-pill{display:inline-flex;align-items:center;gap:.45em;padding:.28em .9em;border-radius:999px;font-weight:600;line-height:1.5;border:1px solid transparent}',
+		'.srunc-on{color:#1a8f3c;background:rgba(40,160,70,.14);border-color:rgba(40,160,70,.40)}',
+		'.srunc-off{color:#8a8a8a;background:rgba(128,128,128,.14);border-color:rgba(128,128,128,.38)}',
+		'.srunc-dot{width:.58em;height:.58em;border-radius:50%;background:currentColor;flex:0 0 auto}',
+		'.srunc-badge{display:inline-flex;align-items:center;padding:.2em .6em;border-radius:6px;background:rgba(128,128,128,.15);font-size:.85em;font-weight:500}',
+		// kv grid (two responsive columns)
+		'.srunc-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:2.5em;row-gap:.1em;margin:.2em 0 .8em}',
+		'@media(max-width:768px){.srunc-grid{grid-template-columns:1fr}}',
+		'.srunc-grid-col h4{margin:0 0 .3em 0;opacity:.7;font-size:.85em;font-weight:600;text-transform:uppercase;letter-spacing:.04em}',
+		'.srunc-kv{border-collapse:collapse;width:100%;margin:0 0 .6em}',
+		'.srunc-kv td{padding:.18em .8em .18em 0;vertical-align:top;font-size:.9em}',
+		'.srunc-kv .srunc-k{opacity:.55;white-space:nowrap;width:6em}',
+		'.srunc-kv .srunc-v{font-weight:500}',
+		'.srunc-v .srunc-auto{opacity:.6;font-style:italic;font-weight:400}',
+		// copy button (visible on row hover)
+		'.srunc-copy{display:inline-flex;align-items:center;margin-left:.4em;padding:0 .35em;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font-size:.85em;opacity:.35;transition:opacity .15s,border-color .15s}',
+		'.srunc-kv tr:hover .srunc-copy,.srunc-copy:focus,.srunc-copy:hover{opacity:1;border-color:rgba(128,128,128,.4)}',
+		// device sub-table
+		'.srunc-devices{margin:.4em 0 1em;border-collapse:collapse;font-size:.85em;width:auto}',
+		'.srunc-devices th,.srunc-devices td{padding:.25em .9em .25em 0;text-align:left;vertical-align:top}',
+		'.srunc-devices th{opacity:.55;font-weight:500;border-bottom:1px solid rgba(128,128,128,.25)}',
+		'.srunc-devices .srunc-current{font-weight:600;background:rgba(40,160,70,.10)}',
+		// setup banner
+		'.srunc-setup{display:flex;align-items:center;gap:.8em;padding:.7em 1em;margin-bottom:.8em;border-radius:8px;background:rgba(240,180,40,.15);border:1px solid rgba(240,180,40,.45)}',
+		'.srunc-setup .srunc-setup-icon{font-size:1.4em;line-height:1}',
+		// password show/hide toggle
+		'.srunc-password-wrap{display:inline-flex;align-items:stretch;gap:.25em}',
+		'.srunc-eye{padding:.1em .55em;line-height:1;cursor:pointer}',
+		// advanced disclosure
+		'details.srunc-advanced{margin:.4em 0 1em;border:1px solid rgba(128,128,128,.25);border-radius:6px;padding:.2em .8em}',
+		'details.srunc-advanced[open]{padding-bottom:.6em}',
+		'details.srunc-advanced > summary{cursor:pointer;padding:.45em 0;font-weight:600;opacity:.8;list-style:none}',
+		'details.srunc-advanced > summary::-webkit-details-marker{display:none}',
+		'details.srunc-advanced > summary::before{content:"▸ ";opacity:.6}',
+		'details.srunc-advanced[open] > summary::before{content:"▾ "}',
+		// actions row
+		'.srunc-actions{display:flex;flex-wrap:wrap;gap:.5em;margin:.6em 0 1em}',
+		// log preview
+		'.srunc-log-card{margin:1.2em 0 0;border:1px solid rgba(128,128,128,.25);border-radius:6px;padding:.5em .8em;background:rgba(128,128,128,.05)}',
+		'.srunc-log-card-head{display:flex;align-items:center;gap:.8em;flex-wrap:wrap;margin-bottom:.4em}',
+		'.srunc-log-card pre{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8em;line-height:1.4;max-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-word;opacity:.85}',
+		'.srunc-log-card-actions{margin-left:auto;display:flex;gap:.4em}',
+		'.srunc-log-card-actions a{text-decoration:none;opacity:.7;font-size:.85em}',
+		'.srunc-log-card-actions a:hover{opacity:1}'
+	].join('\n'));
+}
+
+// --- header & footer ------------------------------------------------------
+
+function renderHeader(version) {
+	var bits = [];
+	if (version && version.srunc) bits.push('srunc ' + version.srunc);
+	if (version && version.luci_app) bits.push('luci-app ' + version.luci_app);
+	var up = fmtUptime(version && version.uptime_sec);
+	if (up) bits.push(_('daemon up') + ' ' + up);
+	return E('div', { 'class': 'srunc-header' }, [
+		E('h2', {}, _('srunc')),
+		E('div', { 'class': 'srunc-meta' }, bits.join(' · ') || '')
+	]);
+}
+
+function renderFooter(status, version, gateway) {
+	var bits = [];
+	if (version && version.srunc) bits.push('srunc ' + version.srunc);
+	if (version && version.luci_app) bits.push('luci-app-srunc ' + version.luci_app);
+	var up = fmtUptime(version && version.uptime_sec);
+	if (up) bits.push(_('daemon up') + ' ' + up);
+	if (gateway) bits.push(_('gateway') + ' ' + gateway);
+	if (status && status.resolved_ac_id) bits.push('ac_id=' + status.resolved_ac_id);
+	return E('div', { 'class': 'srunc-footer' }, bits.join(' · '));
+}
+
+// --- status hero & KV grid ------------------------------------------------
+
+function renderStatusHero(status, profileName, keepaliveEnabled) {
+	var online = !!(status && status.online);
+	var bits = [
+		E('span', { 'class': 'srunc-pill ' + (online ? 'srunc-on' : 'srunc-off') }, [
+			E('span', { 'class': 'srunc-dot' }),
+			online ? _('Online') : _('Offline')
+		])
+	];
+	if (profileName) bits.push(E('span', { 'class': 'srunc-badge' }, profileName));
+	if (online && keepaliveEnabled) bits.push(E('span', { 'class': 'srunc-badge' }, _('keepalive')));
+	return E('div', { 'class': 'srunc-status' }, bits);
+}
+
+function renderKvGrid(status, profiles) {
+	status = status || {};
+	var d = status.details || {};
+
+	// Session column.
+	var sessionRows = [
+		status.online ? kvRow(_('User'), status.username || '?', { copyable: true }) : null,
+		status.online ? kvRow(_('IPv4'), status.ip || d.online_ip || '?', { copyable: true }) : null,
+		(status.online && d.devices) ? kvRow(_('IPv6'), pickCurrentIp6(d.devices, status.ip || d.online_ip), { copyable: true }) : null,
+		(status.online && d.user_mac) ? kvRow(_('MAC'), d.user_mac, { copyable: true }) : null,
+		(status.online && typeof d.online_device_total === 'number') ? kvRow(_('Devices'), String(d.online_device_total)) : null,
+		kvRow(_('Portal'), status.resolved_host || resolvedHostFromConfig(profiles) || '?', { copyable: !!status.resolved_host }),
+		kvRow(_('ac_id'), status.resolved_ac_id || E('span', { 'class': 'srunc-auto' }, _('auto-discover'))),
+		(status.online && d.keepalive_time) ? kvRow(_('Last kp'), fmtAgo(d.keepalive_time)) : null
+	].filter(Boolean);
+
+	// Plan & quota column (only when details present, i.e. THU).
+	var quotaRows = [];
+	if (status.online && status.details) {
+		quotaRows = [
+			d.plan ? kvRow(_('Plan'), d.plan) : null,
+			d.billing ? kvRow(_('Billing'), d.billing) : null,
+			(typeof d.sum_bytes === 'number') ? kvRow(_('Used'), fmtBytes(d.sum_bytes)) : null,
+			(typeof d.bytes_in === 'number') ? kvRow(_('↓ in'), fmtBytes(d.bytes_in)) : null,
+			(typeof d.bytes_out === 'number') ? kvRow(_('↑ out'), fmtBytes(d.bytes_out)) : null,
+			(typeof d.sum_seconds === 'number') ? kvRow(_('Time used'), fmtSeconds(d.sum_seconds)) : null,
+			(typeof d.user_balance === 'number' && d.user_balance > 0) ? kvRow(_('Balance'), String(d.user_balance)) : null,
+			d.add_time ? kvRow(_('Active since'), fmtDate(d.add_time)) : null
+		].filter(Boolean);
+	}
+
+	var cols = [
+		E('div', { 'class': 'srunc-grid-col' }, [
+			E('h4', {}, _('Session')),
+			E('table', { 'class': 'srunc-kv' }, sessionRows)
+		])
+	];
+	if (quotaRows.length) {
+		cols.push(E('div', { 'class': 'srunc-grid-col' }, [
+			E('h4', {}, _('Plan & quota')),
+			E('table', { 'class': 'srunc-kv' }, quotaRows)
+		]));
+	}
+	return E('div', { 'class': 'srunc-grid' }, cols);
+}
+
+function pickCurrentIp6(devices, currentIp) {
+	if (!devices || !devices.length) return null;
+	var match = devices.find(function (dev) { return dev.ip === currentIp; });
+	return (match && match.ip6) || null;
+}
+
+function resolvedHostFromConfig(profiles) {
+	var explicit = (uci.get('srunc', 'default', 'host') || '').trim();
+	if (explicit) return explicit;
+	var pid = uci.get('srunc', 'default', 'profile') || '';
+	if (pid) {
+		for (var i = 0; i < profiles.length; i++) {
+			if (profiles[i].id === pid && profiles[i].host) return profiles[i].host;
+		}
+	}
+	return null;
+}
+
+function renderDevicesTable(devices, currentIp) {
 	if (!devices || devices.length < 2) return null;
 	var head = E('tr', {}, [
 		E('th', {}, _('IP')),
@@ -213,75 +315,11 @@ function renderDevices(devices, currentIp) {
 			E('td', {}, d.rad_online_id || '')
 		]);
 	});
-	return E('div', {}, [
-		E('div', { 'class': 'srunc-devices-cap' }, _('Online devices')),
-		E('table', { 'class': 'srunc-devices' }, [head].concat(rows))
-	]);
+	return E('table', { 'class': 'srunc-devices' }, [head].concat(rows));
 }
 
-function renderStatus(s, profileName, keepalive, portal) {
-	s = s || {};
-	var online = !!s.online;
+// --- setup banner (shown when no username configured) ---------------------
 
-	var head = [
-		E('span', { 'class': 'srunc-pill ' + (online ? 'srunc-on' : 'srunc-off') }, [
-			E('span', { 'class': 'srunc-dot' }),
-			online ? _('Online') : _('Offline')
-		])
-	];
-	if (profileName)
-		head.push(E('span', { 'class': 'srunc-badge' }, profileName));
-	if (online && keepalive)
-		head.push(E('span', { 'class': 'srunc-badge' }, _('keepalive')));
-
-	var children = [ E('div', { 'class': 'srunc-status' }, head) ];
-
-	// Portal row always visible — tells the user which host the daemon
-	// resolved to (explicit override > profile host > auto-discovered).
-	var rows = [];
-	if (portal) {
-		rows.push(kvRow(_('Portal'), portal.label, {
-			auto: portal.source === 'auto',
-			copyable: portal.source !== 'auto'
-		}));
-	}
-
-	if (online) {
-		rows.push(kvRow(_('User'), s.username || '?', { copyable: true }));
-		rows.push(kvRow(_('IP'), s.ip || '?', { copyable: true }));
-
-		// `details` is only populated for portals whose rad_user_info schema
-		// the daemon has verified — currently THU. Other deployments get the
-		// bare-bones rows above and skip the rest.
-		var d = s.details;
-		if (d) {
-			if (d.plan)                rows.push(kvRow(_('Plan'),    d.plan));
-			if (d.user_mac)            rows.push(kvRow(_('MAC'),     d.user_mac, { copyable: true }));
-			if (typeof d.online_device_total === 'number')
-				rows.push(kvRow(_('Devices'), String(d.online_device_total)));
-			var used = fmtBytes(d.sum_bytes);
-			if (used)                  rows.push(kvRow(_('Used'),    used));
-			var time = fmtSeconds(d.sum_seconds);
-			if (time)                  rows.push(kvRow(_('Time'),    time));
-			var ka = fmtAgo(d.keepalive_time);
-			if (ka)                    rows.push(kvRow(_('Last keepalive'), ka));
-		}
-	}
-
-	if (rows.length > 0)
-		children.push(E('table', { 'class': 'srunc-kv' }, rows));
-
-	if (online && s.details) {
-		var devTable = renderDevices(s.details.devices, s.details.online_ip || s.ip);
-		if (devTable) children.push(devTable);
-	}
-
-	return E('div', {}, children);
-}
-
-// One-time non-blocking banner pointing first-time users at Settings.
-// Suppressed once `username` is configured. Linked using LuCI's view
-// navigation so it works regardless of admin URL prefix.
 function setupBanner() {
 	var hasUser = !!(uci.get('srunc', 'default', 'username') || '').trim();
 	if (hasUser) return null;
@@ -290,15 +328,47 @@ function setupBanner() {
 		E('div', {}, [
 			E('strong', {}, _('Setup required.')),
 			' ',
-			_('No username configured yet. '),
-			E('a', { 'href': L.url('admin', 'services', 'srunc', 'settings') }, _('Open Settings')),
-			' ',
-			_('to enter your portal credentials.')
+			_('Enter your portal credentials below and click Save & Apply.')
 		])
 	]);
 }
 
-// Poll status until `online === expected` or timeout; resolves null on timeout.
+// --- log preview ----------------------------------------------------------
+
+function renderLogPreview(text, serviceInfo) {
+	text = String(text || '');
+	var lines = text.split('\n');
+	if (lines.length > 12) lines = lines.slice(-12);
+	var tail = lines.join('\n');
+	var running = !!(serviceInfo && serviceInfo.running);
+	var badge = E('span', { 'class': 'srunc-pill ' + (running ? 'srunc-on' : 'srunc-off') }, [
+		E('span', { 'class': 'srunc-dot' }),
+		running ? _('Service running') : _('Service stopped')
+	]);
+	var copyBtnEl = E('a', {
+		'href': '#',
+		'click': function (ev) {
+			ev.preventDefault();
+			copyText(text).then(function () {
+				ui.addNotification(null, E('p', _('Log copied to clipboard.')), 'success');
+			}, function () {
+				ui.addNotification(null, E('p', _('Could not copy to clipboard.')), 'warning');
+			});
+		}
+	}, _('Copy'));
+	var openLink = E('a', { 'href': L.url('admin', 'services', 'srunc', 'log') }, _('Open Log →'));
+	return E('div', { 'class': 'srunc-log-card' }, [
+		E('div', { 'class': 'srunc-log-card-head' }, [
+			badge,
+			E('span', { 'class': 'srunc-meta' }, _('Recent log (last %d lines)').format(lines.length)),
+			E('span', { 'class': 'srunc-log-card-actions' }, [ copyBtnEl, openLink ])
+		]),
+		E('pre', {}, tail || _('No log output yet.'))
+	]);
+}
+
+// --- action verification (the 0.5.1 toast-accuracy fix) -------------------
+
 function waitForOnline(expected, timeoutSec) {
 	var deadline = Date.now() + timeoutSec * 1000;
 	function step() {
@@ -314,29 +384,23 @@ function waitForOnline(expected, timeoutSec) {
 	return step();
 }
 
-// rpcd login/logout/restart only confirm dispatch, not the eventual auth
-// result — so we poll status to find out what actually happened.
 function runAction(opts, ev) {
 	var btn = ev.currentTarget;
 	var orig = btn.innerHTML;
 	btn.disabled = true;
 	btn.innerHTML = '<em>' + _('Working…') + '</em>';
 	var timeoutSec = opts.timeoutSec || 12;
-
 	return opts.fn().then(function (r) {
 		if (!r || r.ok === false) {
 			var err = (r && r.error) || _('dispatch failed');
-			ui.addNotification(null,
-				E('p', _('%s: %s').format(opts.label, err)), 'danger');
+			ui.addNotification(null, E('p', _('%s: %s').format(opts.label, err)), 'danger');
 			return;
 		}
 		return waitForOnline(opts.expectedOnline, timeoutSec).then(function (st) {
 			if (st === null) {
-				ui.addNotification(null,
-					E('p', opts.verifyFailure(timeoutSec)), 'warning');
+				ui.addNotification(null, E('p', opts.verifyFailure(timeoutSec)), 'warning');
 			} else {
-				ui.addNotification(null,
-					E('p', opts.verifySuccess(st)), 'success');
+				ui.addNotification(null, E('p', opts.verifySuccess(st)), 'success');
 			}
 		});
 	}, function (e) {
@@ -347,107 +411,292 @@ function runAction(opts, ev) {
 	});
 }
 
+// --- form build ------------------------------------------------------------
+
+// Marker class on each Advanced row so we can move them into <details>
+// after form.render() returns the DOM.
+var ADVANCED_NAMES = [
+	'host', 'ac_id', '_discover', 'insecure', 'timeout', 'log_level',
+	'keepalive', 'campus_only', 'interval', 'retry'
+];
+
+function configureForm(m, profiles) {
+	var s = m.section(form.NamedSection, 'default', 'srunc', null);
+	var o;
+
+	o = s.option(form.Flag, 'enabled', _('Enabled'));
+	o.default = '1';
+	o.rmempty = false;
+
+	o = s.option(form.ListValue, 'profile', _('Deployment'),
+		_('Pick your srun deployment to use its built-in defaults. Choose <em>Custom</em> to fall through to captive-portal auto-discovery.'));
+	o.value('', _('— Custom / auto —'));
+	for (var i = 0; i < profiles.length; i++) {
+		o.value(profiles[i].id, profiles[i].label);
+	}
+	o.default = '';
+	o.rmempty = true;
+
+	function previewWidget(depValue, lines) {
+		var w = s.option(form.DummyValue, '_preview_' + (depValue || 'none'), _('Resolved'));
+		w.depends('profile', depValue);
+		w.rawhtml = true;
+		w.cfgvalue = function () { return lines.join('<br>'); };
+		return w;
+	}
+	previewWidget('', [
+		'<em>' + _('Portal host: auto-discovered from the captive redirect') + '</em>',
+		'<em>' + _('ac_id: auto-discovered from the captive redirect') + '</em>'
+	]);
+	for (var pi = 0; pi < profiles.length; pi++) {
+		var p = profiles[pi];
+		var lines = [
+			p.host
+				? _('Portal host: <strong>%s</strong>').format(p.host)
+				: '<em>' + _('Portal host: auto-discovered (this deployment is label-only)') + '</em>',
+			_('ac_id: <strong>auto-discovered</strong> per network segment')
+		];
+		previewWidget(p.id, lines);
+	}
+
+	o = s.option(form.Value, 'username', _('Username'));
+	o.rmempty = false;
+	o.placeholder = 'your-account';
+
+	o = s.option(form.Value, 'password', _('Password'));
+	o.password = true;
+	o.rmempty = false;
+	var origRender = o.renderWidget;
+	o.renderWidget = function (section_id, option_index, cfgvalue) {
+		var widget = origRender.apply(this, [section_id, option_index, cfgvalue]);
+		var input = widget && widget.querySelector ? widget.querySelector('input[type=password]') : null;
+		var hasNative = widget && widget.querySelector
+			&& widget.querySelector('.cbi-button-toggle, .cbi-input-password-toggle');
+		if (!input || hasNative) return widget;
+		var btn = E('button', {
+			'type': 'button',
+			'class': 'cbi-button cbi-button-action srunc-eye',
+			'title': _('Show/hide password'),
+			'click': function (ev) {
+				ev.preventDefault();
+				if (input.type === 'password') { input.type = 'text'; ev.target.textContent = '🙈'; }
+				else { input.type = 'password'; ev.target.textContent = '👁'; }
+			}
+		}, '👁');
+		var wrap = E('span', { 'class': 'srunc-password-wrap' });
+		input.parentNode.insertBefore(wrap, input);
+		wrap.appendChild(input);
+		wrap.appendChild(btn);
+		return widget;
+	};
+
+	// ---- Advanced (will be DOM-wrapped in <details> after render) ----
+
+	o = s.option(form.Value, 'host', _('Portal host'),
+		_('Leave blank to use the host the selected <em>Deployment</em> profile carries, or to fall through to captive-portal auto-discovery if no profile is picked. Set a value here only to override both.'));
+	o.optional = true;
+	o.placeholder = _('blank = from profile / auto-discover');
+
+	o = s.option(form.Value, 'ac_id', _('ac_id'),
+		_('Leave blank to auto-discover the segment-correct ac_id from the captive redirect at every login. Set a value here only if you know your network segment\'s ac_id and want to skip the probe. <strong>Deployment profiles deliberately do NOT pin ac_id</strong> — it varies per dorm / building / VLAN.'));
+	o.optional = true;
+	o.placeholder = _('blank = auto-discover');
+	o.datatype = 'uinteger';
+
+	o = s.option(form.Button, '_discover', _('Discover from gateway'),
+		_('Probe the default gateway for the captive-portal redirect and prefill <em>Portal host</em> + <em>ac_id</em> above.'));
+	o.inputtitle = _('Discover');
+	o.inputstyle = 'apply';
+	o.onclick = function (ev, section_id) {
+		var btn = ev.currentTarget;
+		var orig = btn.value;
+		btn.disabled = true;
+		btn.value = _('Probing…');
+		return callDiscover().then(function (r) {
+			if (r && r.host) {
+				var hostOpt = s.getOption('host');
+				var acOpt = s.getOption('ac_id');
+				if (hostOpt) hostOpt.getUIElement(section_id).setValue(r.host);
+				if (acOpt && r.ac_id) acOpt.getUIElement(section_id).setValue(r.ac_id);
+				ui.addNotification(null,
+					E('p', _('Discovered host %s, ac_id %s').format(r.host, r.ac_id || '?')),
+					'success');
+			} else {
+				var msg = (r && r.error) || _('no captive redirect found');
+				ui.addNotification(null, E('p', _('Discover failed: %s').format(msg)), 'warning');
+			}
+		}, function (e) {
+			ui.addNotification(null, E('p', e.message || String(e)), 'danger');
+		}).finally(function () {
+			btn.disabled = false;
+			btn.value = orig;
+		});
+	};
+
+	o = s.option(form.Flag, 'insecure', _('Use http://'),
+		_('Use plain <code>http://</code> instead of <code>https://</code> for portal requests. Leave off unless your portal cert is self-signed AND you trust the LAN you\'re on; otherwise authentication credentials transit unencrypted.'));
+	o.default = '0';
+
+	o = s.option(form.Value, 'timeout', _('HTTP timeout (seconds)'));
+	o.datatype = 'uinteger';
+	o.default = '2';
+	o.placeholder = '2';
+
+	o = s.option(form.ListValue, 'log_level', _('Log level'),
+		_('Verbosity of the background daemon. Higher levels show more in the <em>Log</em> tab.'));
+	o.value('error', _('Error'));
+	o.value('warn',  _('Warning'));
+	o.value('info',  _('Info'));
+	o.value('debug', _('Debug'));
+	o.default = 'info';
+
+	o = s.option(form.Flag, 'keepalive', _('Enable keepalive'),
+		_('Pass <code>-k</code> to srunc so it keeps the session alive.'));
+	o.default = '1';
+
+	o = s.option(form.Flag, 'campus_only', _('In-campus keepalive probe'),
+		_('Probe an in-campus URL instead of the public internet (useful where public traffic is billed).'));
+	o.default = '0';
+	o.depends('keepalive', '1');
+
+	o = s.option(form.Value, 'interval', _('Probe interval (seconds)'));
+	o.datatype = 'uinteger';
+	o.default = '3';
+	o.depends('keepalive', '1');
+
+	o = s.option(form.Value, 'retry', _('Consecutive failures before exit'));
+	o.datatype = 'uinteger';
+	o.default = '2';
+	o.depends('keepalive', '1');
+}
+
+// Move every Advanced row into a <details> element.
+function wrapAdvanced(formNode) {
+	var rows = ADVANCED_NAMES.map(function (name) {
+		return formNode.querySelector('[data-name="' + name + '"]');
+	}).filter(Boolean);
+	if (!rows.length) return;
+	var anchor = rows[0];
+	var details = E('details', { 'class': 'srunc-advanced' }, [
+		E('summary', {}, _('Advanced'))
+	]);
+	anchor.parentNode.insertBefore(details, anchor);
+	rows.forEach(function (row) { details.appendChild(row); });
+}
+
+// --- view -----------------------------------------------------------------
+
 return view.extend({
 	load: function () {
 		return Promise.all([
 			callStatus('default').catch(function () { return {}; }),
+			callServiceStatus().catch(function () { return { running: false }; }),
+			callVersion().catch(function () { return {}; }),
+			callLog(50).catch(function () { return ''; }),
 			uci.load('srunc').catch(function () {}),
 			callProfiles().catch(function () { return []; })
 		]);
 	},
 
 	render: function (loaded) {
-		var initial = (loaded && loaded[0]) || {};
-		var profiles = (loaded && loaded[2]) || [];
-		var profile = profileLabel(profiles);
-		var portal = resolvedPortal(profiles);
-		var keepalive = (uci.get('srunc', 'default', 'keepalive') !== '0');
-		var statusBox = E('div', {}, renderStatus(initial, profile, keepalive, portal));
+		var initial = loaded[0] || {};
+		var initialService = loaded[1] || { running: false };
+		var versionInfo = loaded[2] || {};
+		var initialLog = loaded[3] || '';
+		var profiles = loaded[5] || [];
+		var self = this;
 
-		var loginOpts = {
-			label: _('login'),
-			fn: callLogin,
-			expectedOnline: true,
-			verifySuccess: function (st) {
-				return st.username
-					? _('Logged in as %s.').format(st.username)
-					: _('Login succeeded.');
-			},
-			verifyFailure: function (sec) {
-				return _('Login dispatched but the daemon is still offline after %d s. Check the Log tab for the portal\'s error code.').format(sec);
-			}
-		};
-		var logoutOpts = {
-			label: _('logout'),
-			fn: callLogout,
-			expectedOnline: false,
-			verifySuccess: function () { return _('Logged out.'); },
-			verifyFailure: function (sec) {
-				return _('Logout dispatched but the session is still online after %d s.').format(sec);
-			}
-		};
-		var restartOpts = {
-			label: _('restart'),
-			fn: callRestart,
-			expectedOnline: true,
-			verifySuccess: function (st) {
-				return st.username
-					? _('Service restarted; logged in as %s.').format(st.username)
-					: _('Service restarted.');
-			},
-			verifyFailure: function (sec) {
-				return _('Service restarted but the daemon is still offline after %d s.').format(sec);
-			}
-		};
+		var m = new form.Map('srunc');
+		this.map = m;
+		configureForm(m, profiles);
 
-		var loginBtn = E('button', {
-			'class': 'btn cbi-button-action',
-			'click': ui.createHandlerFn(this, runAction, loginOpts)
-		}, [ _('Login now') ]);
-		var logoutBtn = E('button', {
-			'class': 'btn cbi-button-negative',
-			'click': ui.createHandlerFn(this, runAction, logoutOpts)
-		}, [ _('Logout') ]);
-		var restartBtn = E('button', {
-			'class': 'btn cbi-button-neutral',
-			'click': ui.createHandlerFn(this, runAction, restartOpts)
-		}, [ _('Restart service') ]);
+		return m.render().then(function (formNode) {
+			wrapAdvanced(formNode);
 
-		function refreshActions(online) {
-			// Restart stays enabled — operator escape hatch.
-			loginBtn.disabled = !!online;
-			logoutBtn.disabled = !online;
-		}
-		refreshActions(initial.online);
+			var profile = profileLabel(profiles);
+			var keepalive = (uci.get('srunc', 'default', 'keepalive') !== '0');
+			var heroBox = E('div', {}, renderStatusHero(initial, profile, keepalive));
+			var gridBox = E('div', {}, renderKvGrid(initial, profiles));
+			var devicesBox = E('div', {},
+				renderDevicesTable(initial.details && initial.details.devices,
+					(initial.details && initial.details.online_ip) || initial.ip) || []);
+			var footerBox = E('div', {}, renderFooter(initial, versionInfo, null));
+			var logBox = E('div', {}, renderLogPreview(initialLog, initialService));
 
-		poll.add(function () {
-			return callStatus('default').then(function (s) {
-				dom.content(statusBox, renderStatus(s, profile, keepalive, portal));
-				refreshActions(s && s.online);
-			}, function () { /* ignore transient errors */ });
-		}, 5);
+			// Action buttons (Logout + Restart). Login removed — Save & Apply
+			// on a changed config restarts the daemon, which re-auths.
+			var logoutOpts = {
+				label: _('logout'),
+				fn: callLogout,
+				expectedOnline: false,
+				verifySuccess: function () { return _('Logged out.'); },
+				verifyFailure: function (sec) {
+					return _('Logout dispatched but the session is still online after %d s.').format(sec);
+				}
+			};
+			var restartOpts = {
+				label: _('restart'),
+				fn: callRestart,
+				expectedOnline: true,
+				verifySuccess: function (st) {
+					return st.username
+						? _('Service restarted; logged in as %s.').format(st.username)
+						: _('Service restarted.');
+				},
+				verifyFailure: function (sec) {
+					return _('Service restarted but the daemon is still offline after %d s.').format(sec);
+				}
+			};
+			var logoutBtn = E('button', {
+				'class': 'btn cbi-button-negative',
+				'click': ui.createHandlerFn(self, runAction, logoutOpts)
+			}, [ _('Logout') ]);
+			var restartBtn = E('button', {
+				'class': 'btn cbi-button-neutral',
+				'click': ui.createHandlerFn(self, runAction, restartOpts)
+			}, [ _('Restart service') ]);
+			function refreshActions(online) { logoutBtn.disabled = !online; }
+			refreshActions(initial.online);
 
-		var banner = setupBanner();
+			// Refresh status / service / log every 5 s.
+			poll.add(function () {
+				return Promise.all([
+					callStatus('default').then(function (s) {
+						dom.content(heroBox, renderStatusHero(s, profile, keepalive));
+						dom.content(gridBox, renderKvGrid(s, profiles));
+						var t = renderDevicesTable(s.details && s.details.devices,
+							(s.details && s.details.online_ip) || s.ip);
+						dom.content(devicesBox, t || []);
+						dom.content(footerBox, renderFooter(s, versionInfo, null));
+						refreshActions(s && s.online);
+					}, function () {}),
+					callServiceStatus().then(function (svc) {
+						callLog(50).then(function (lt) {
+							dom.content(logBox, renderLogPreview(lt, svc));
+						}, function () {});
+					}, function () {})
+				]);
+			}, 5);
 
-		var page = [
-			statusStyle(),
-			E('h2', {}, _('srunc'))
-		];
-		if (banner) page.push(banner);
-		page.push(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Status')),
-			statusBox
-		]));
-		page.push(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Actions')),
-			E('div', { 'class': 'srunc-actions' }, [ loginBtn, logoutBtn, restartBtn ])
-		]));
-
-		return E([], page);
+			var banner = setupBanner();
+			var page = [
+				dashboardStyle(),
+				renderHeader(versionInfo)
+			];
+			if (banner) page.push(banner);
+			page.push(heroBox, gridBox, devicesBox, formNode);
+			page.push(E('div', { 'class': 'srunc-actions' }, [ logoutBtn, restartBtn ]));
+			page.push(logBox, footerBox);
+			return E([], page);
+		});
 	},
 
-	// Hide the default Save / Save & Apply / Reset bar — this view has no form.
-	handleSaveApply: null,
-	handleSave: null,
-	handleReset: null
+	// procd auto-reloads on UCI change (see init.d service_triggers), so a
+	// plain Map.save() is enough — the daemon picks up the new config on
+	// the next reload tick.
+	handleSaveApply: function () {
+		return this.map.save().then(function () {
+			ui.addNotification(null, E('p', _('Configuration applied.')), 'success');
+		});
+	}
 });

@@ -65,6 +65,8 @@ impl Client {
             online,
             username,
             ip: Some(ip),
+            resolved_host: None,
+            resolved_ac_id: None,
             details,
         })
     }

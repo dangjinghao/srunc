@@ -13,6 +13,7 @@
 #   profiles {}                     -> {"profiles":[{"id","label","host","ac_id"}, ...]}
 #   discover {}                     -> {"gateway":str, "host":str|null, "ac_id":str|null}
 #   service_status {}               -> {"running":bool}
+#   version {}                      -> {"srunc":str, "luci_app":str, "uptime_sec":int|null}
 #
 # `status` reads `/var/run/srunc/<section>.toml` (rendered by the init script
 # when the daemon is running); falls back to offline if absent. Action methods
@@ -56,6 +57,7 @@ list)
 	json_add_object "profiles"; json_close_object
 	json_add_object "discover"; json_close_object
 	json_add_object "service_status"; json_close_object
+	json_add_object "version"; json_close_object
 	json_dump
 	;;
 
@@ -142,6 +144,23 @@ call)
 		else
 			printf '{"running":false}\n'
 		fi
+		;;
+	version)
+		# srunc version from the binary; luci-app version from the file
+		# the postinst writes; uptime from /proc/<pid>/stat field 22.
+		srunc_ver=$("$PROG" --version 2>/dev/null | awk '{print $NF}')
+		luci_ver=$(cat /usr/share/luci-app-srunc/VERSION 2>/dev/null)
+		pid=$(pgrep -o -x srunc 2>/dev/null)
+		uptime=null
+		if [ -n "$pid" ] && [ -r "/proc/$pid/stat" ]; then
+			# /proc/uptime starts in seconds; /proc/<pid>/stat field 22
+			# is start time in clock ticks. Use the simpler `etimes` if
+			# available (busybox ps may not have it); fall back to null.
+			uptime=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d ' ')
+			[ -n "$uptime" ] || uptime=null
+		fi
+		printf '{"srunc":"%s","luci_app":"%s","uptime_sec":%s}\n' \
+			"${srunc_ver:-unknown}" "${luci_ver:-unknown}" "${uptime:-null}"
 		;;
 	*)
 		reply_fail "unknown method"

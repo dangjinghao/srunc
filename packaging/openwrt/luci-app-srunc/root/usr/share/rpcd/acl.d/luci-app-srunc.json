@@ -3,7 +3,7 @@
 		"description": "Grant the LuCI session ubus access to the `srunc` object and UCI access to the srunc config.",
 		"read": {
 			"ubus": {
-				"srunc": [ "status", "profiles", "log", "discover", "service_status" ]
+				"srunc": [ "status", "profiles", "log", "discover", "service_status", "version" ]
 			},
 			"uci": [ "srunc" ]
 		},

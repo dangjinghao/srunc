@@ -539,7 +539,9 @@ fn cmd_status(cli: &Cli, watch: bool, interval: u64) -> Result<()> {
     let client = Client::new(r.endpoints, s.timeout);
 
     if !watch {
-        let st = client.status(&r.ac_id).context("status query failed")?;
+        let mut st = client.status(&r.ac_id).context("status query failed")?;
+        st.resolved_host = Some(r.host.clone());
+        st.resolved_ac_id = Some(r.ac_id.clone());
         emit_status(&st, cli.json);
         return Ok(());
     }
@@ -552,11 +554,10 @@ fn cmd_status(cli: &Cli, watch: bool, interval: u64) -> Result<()> {
     let mut backoff = interval;
     while !stop.load(Ordering::SeqCst) {
         match client.status(&r.ac_id) {
-            Ok(st) => {
+            Ok(mut st) => {
+                st.resolved_host = Some(r.host.clone());
+                st.resolved_ac_id = Some(r.ac_id.clone());
                 if !cli.json {
-                    // ANSI clear + cursor home, routed through anstream so
-                    // a non-TTY stdout (pipe, file) strips the escape and
-                    // gets plain successive frames instead of literal `[2J`.
                     anstream::print!("\x1b[2J\x1b[H");
                 }
                 emit_status(&st, cli.json);

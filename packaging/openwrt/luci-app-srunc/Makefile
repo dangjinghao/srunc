@@ -19,7 +19,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-srunc
-PKG_VERSION:=0.5.1
+PKG_VERSION:=0.6.0
 PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=Yihang Wang <wangyihanger@gmail.com>
@@ -57,6 +57,8 @@ endef
 define Package/luci-app-srunc/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
+mkdir -p /usr/share/luci-app-srunc
+printf '$(PKG_VERSION)' > /usr/share/luci-app-srunc/VERSION
 /etc/init.d/srunc enable >/dev/null 2>&1 || true
 /etc/init.d/rpcd restart >/dev/null 2>&1 || true
 exit 0
