@@ -74,6 +74,33 @@ pub struct StatusDetails {
     /// HTML) on dual-stack setups.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub online_ip: Option<String>,
+    /// One entry per device the portal believes is logged in on this
+    /// account, parsed out of `online_device_detail`'s embedded JSON.
+    /// `None` (not `Some(vec![])`) when the response carried no list at
+    /// all; `Some(vec![])` if the field was present but empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub devices: Option<Vec<DeviceEntry>>,
+}
+
+/// One row in `online_device_detail`. The portal serializes this as a JSON
+/// *string* (string-encoded JSON) inside the outer response — see
+/// `parse_devices`. We keep MAC and `class_name` separate because some
+/// deployments stuff the MAC into `class_name` and leave `mac` empty.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct DeviceEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ip: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ip6: Option<String>,
+    /// Some installs put the MAC in `class_name`; others use a `mac` key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mac: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rad_online_id: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -144,6 +171,12 @@ pub(crate) struct UserInfoResp {
     pub user_mac: Option<String>,
     #[serde(default)]
     pub online_ip: Option<String>,
+    /// Server emits this as a *string* whose value is a JSON object keyed
+    /// by `rad_online_id`. Parsed lazily by `parse_devices` so the outer
+    /// deserialization never fails on a deployment that ships a different
+    /// shape here.
+    #[serde(default)]
+    pub online_device_detail: Option<String>,
 }
 
 impl UserInfoResp {
@@ -151,6 +184,7 @@ impl UserInfoResp {
     /// is responsible for only invoking this on hosts where the schema is
     /// known to match.
     pub(crate) fn into_details(self) -> StatusDetails {
+        let devices = parse_devices(self.online_device_detail.as_deref());
         StatusDetails {
             plan: nonempty(self.products_name),
             billing: nonempty(self.billing_name),
@@ -171,10 +205,51 @@ impl UserInfoResp {
                 .and_then(|s| s.trim().parse().ok()),
             user_mac: nonempty(self.user_mac),
             online_ip: nonempty(self.online_ip),
+            devices,
         }
     }
 }
 
+/// Parse the nested JSON-string carried in `online_device_detail`. THU emits
+/// `{"<rad_id>": {...}, "<rad_id>": {...}}` (keyed by `rad_online_id`); we
+/// flatten the values into a vector since the key is duplicated inside each
+/// row. Returns `None` for the missing / empty / unparseable cases — UIs
+/// should treat that as "deployment doesn't expose a device list" and just
+/// not render the table.
+fn parse_devices(raw: Option<&str>) -> Option<Vec<DeviceEntry>> {
+    let raw = raw?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let map: std::collections::BTreeMap<String, DeviceEntry> =
+        serde_json::from_str(raw).ok()?;
+    Some(map.into_values().collect())
+}
+
 fn nonempty(s: Option<String>) -> Option<String> {
     s.filter(|v| !v.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_devices_round_trip_thu_sample() {
+        // Minimal slice mirroring THU's shape.
+        let raw = r#"{"123":{"class_name":"AA-BB-CC-DD-EE-FF","ip":"10.0.0.1","ip6":"","os_name":"","rad_online_id":"123"},"456":{"class_name":"","ip":"10.0.0.2","ip6":"::1","os_name":"","rad_online_id":"456"}}"#;
+        let got = parse_devices(Some(raw)).expect("parses");
+        assert_eq!(got.len(), 2);
+        // BTreeMap orders by key — "123" before "456".
+        assert_eq!(got[0].ip.as_deref(), Some("10.0.0.1"));
+        assert_eq!(got[0].class_name.as_deref(), Some("AA-BB-CC-DD-EE-FF"));
+        assert_eq!(got[1].ip6.as_deref(), Some("::1"));
+    }
+
+    #[test]
+    fn parse_devices_handles_missing_and_garbage() {
+        assert!(parse_devices(None).is_none());
+        assert!(parse_devices(Some("")).is_none());
+        assert!(parse_devices(Some("not json at all")).is_none());
+    }
 }

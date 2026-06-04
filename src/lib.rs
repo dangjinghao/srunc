@@ -18,6 +18,6 @@ pub use client::Client;
 pub use discover::{discover, Discovered};
 pub use endpoints::Endpoints;
 pub use error::Error;
-pub use models::{Status, StatusDetails};
+pub use models::{DeviceEntry, Status, StatusDetails};
 pub use profiles::Profile;
 pub use protocol::Credentials;

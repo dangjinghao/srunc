@@ -154,6 +154,12 @@ fn status_rich_details_for_verified_host() {
     assert_eq!(d.sum_bytes, Some(1_545_951_597));
     assert_eq!(d.sum_seconds, Some(325_134));
     assert_eq!(d.keepalive_time, Some(1_780_558_656));
+    // online_device_detail is an embedded JSON string with three rows; the
+    // parser flattens those into a Vec ordered by rad_online_id.
+    let devices = d.devices.expect("THU sample carries a device list");
+    assert_eq!(devices.len(), 3);
+    let macs: Vec<_> = devices.iter().filter_map(|d| d.ip.clone()).collect();
+    assert!(macs.iter().any(|ip| ip == "10.0.0.2"));
 }
 
 #[test]
