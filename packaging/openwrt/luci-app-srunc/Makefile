@@ -19,9 +19,9 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-srunc
-PKG_VERSION:=0.4.2
+PKG_VERSION:=0.4.3
 PKG_RELEASE:=1
-PKG_LICENSE:=GPL-3.0-or-later
+PKG_LICENSE:=MIT
 PKG_MAINTAINER:=Yihang Wang <wangyihanger@gmail.com>
 
 LUCI_TITLE:=srunc (srun campus-portal auth) + LuCI web UI
