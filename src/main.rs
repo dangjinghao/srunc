@@ -137,6 +137,10 @@ enum Cmd {
         #[command(subcommand)]
         action: ProfilesCmd,
     },
+    /// Probe the default gateway for the captive-portal redirect and print
+    /// the host + ac_id it advertises. Backs the "Discover from gateway"
+    /// button in the LuCI Settings view.
+    Discover,
 }
 
 #[derive(Subcommand, Debug)]
@@ -320,6 +324,42 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
         endpoints,
         ac_id,
     })
+}
+
+fn cmd_discover(cli: &Cli) -> Result<()> {
+    // Settings resolution gives us the timeout the user has configured —
+    // discovery shouldn't hang the LuCI page if the gateway is unreachable.
+    let s = resolve(cli)?;
+    let gateway =
+        srunc::gateway::default_gateway_v4().ok_or_else(|| anyhow!("no default IPv4 gateway"))?;
+    let d = srunc::discover(&gateway, s.timeout).context("gateway probe failed")?;
+
+    if cli.json {
+        // Emit the same shape regardless of partial results so JS callers
+        // (the LuCI Discover button) can always read both keys.
+        let payload = serde_json::json!({
+            "gateway": gateway,
+            "host": d.host,
+            "ac_id": d.ac_id,
+        });
+        println!("{}", serde_json::to_string(&payload)?);
+        return Ok(());
+    }
+
+    use anstream::println;
+    use anstyle::Style;
+    let dim = Style::new().dimmed();
+    let bold = Style::new().bold();
+    println!("{dim}gateway{dim:#}  {bold}{}{bold:#}", gateway);
+    println!(
+        "{dim}host{dim:#}     {bold}{}{bold:#}",
+        d.host.as_deref().unwrap_or("(not found)")
+    );
+    println!(
+        "{dim}ac_id{dim:#}    {bold}{}{bold:#}",
+        d.ac_id.as_deref().unwrap_or("(not found)")
+    );
+    Ok(())
 }
 
 fn cmd_profiles_list(json: bool) -> Result<()> {
@@ -699,6 +739,7 @@ fn main() -> ExitCode {
         Cmd::Profiles { action } => match action {
             ProfilesCmd::List { json } => cmd_profiles_list(*json),
         },
+        Cmd::Discover => cmd_discover(&cli),
     };
 
     match result {

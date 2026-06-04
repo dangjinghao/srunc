@@ -11,6 +11,7 @@
 #   logout   {}                     -> {"ok":bool}        # stops the procd service
 #   restart  {}                     -> {"ok":bool}
 #   profiles {}                     -> {"profiles":[{"id","label","host","ac_id"}, ...]}
+#   discover {}                     -> {"gateway":str, "host":str|null, "ac_id":str|null}
 #
 # `status` reads `/var/run/srunc/<section>.toml` (rendered by the init script
 # when the daemon is running); falls back to offline if absent. Action methods
@@ -52,6 +53,7 @@ list)
 	json_add_object "logout";  json_close_object
 	json_add_object "restart";  json_close_object
 	json_add_object "profiles"; json_close_object
+	json_add_object "discover"; json_close_object
 	json_dump
 	;;
 
@@ -116,6 +118,17 @@ call)
 		# the {profiles: [...]} envelope LuCI expects from an ubus method.
 		out=$("$PROG" profiles list --json 2>/dev/null) || out="[]"
 		printf '{"profiles":%s}\n' "$out"
+		;;
+	discover)
+		# Probe the default gateway. Output is already JSON-shaped by the
+		# binary ({gateway, host, ac_id}); pass it through verbatim. On
+		# error emit an explicit failure object so the Settings view can
+		# surface "no captive redirect found" as a toast.
+		if out=$("$PROG" --json discover 2>&1); then
+			printf '%s\n' "$out"
+		else
+			reply_fail "$out"
+		fi
 		;;
 	*)
 		reply_fail "unknown method"
