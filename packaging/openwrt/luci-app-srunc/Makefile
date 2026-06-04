@@ -19,7 +19,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-srunc
-PKG_VERSION:=0.6.1
+PKG_VERSION:=0.6.2
 PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=Yihang Wang <wangyihanger@gmail.com>
@@ -106,10 +106,16 @@ define Package/luci-app-srunc/postrm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 # /etc/config/srunc is a conffile — left alone on remove so reinstall
-# restores the user's credentials. Drop only our runtime / cache state.
+# restores the user's credentials. Drop our runtime / cache state, plus
+# the rc.d / procd leftovers that `disable` + procd GC sometimes miss on
+# OverlayFS (same defensive pattern goauthing uses).
 rm -f  /usr/share/luci-app-srunc/VERSION
 rm -rf /usr/share/luci-app-srunc
 rm -rf /var/run/srunc
+rm -f  /etc/rc.d/S95srunc /etc/rc.d/K01srunc
+rm -f  /overlay/upper/etc/rc.d/S95srunc /overlay/upper/etc/rc.d/K01srunc
+rm -rf /sys/fs/cgroup/services/srunc
+rm -f  /tmp/lock/procd_srunc.lock
 /etc/init.d/rpcd reload >/dev/null 2>&1 || true
 exit 0
 endef
