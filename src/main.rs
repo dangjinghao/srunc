@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
+use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Parser, Subcommand};
 use log::{debug, info, warn, LevelFilter};
 use serde::Deserialize;
@@ -18,6 +19,16 @@ use serde::Deserialize;
 use srunc::{Client, Credentials, Endpoints};
 
 // ---------- CLI ----------
+
+/// Match the visual style used by anstream elsewhere in the CLI: green for
+/// positive headers, yellow for usage, bold for placeholders.
+fn cli_styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::Green.on_default() | Effects::BOLD)
+        .usage(AnsiColor::Yellow.on_default() | Effects::BOLD)
+        .literal(AnsiColor::Cyan.on_default() | Effects::BOLD)
+        .placeholder(AnsiColor::White.on_default() | Effects::BOLD)
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -27,7 +38,8 @@ use srunc::{Client, Credentials, Endpoints};
     long_about = "Authenticate against srun-based captive portals. Most \
                   deployments work out of the box via captive-redirect \
                   auto-discovery; use `--profile <id>` or `--host <h>` for \
-                  the rest."
+                  the rest.",
+    styles = cli_styles()
 )]
 struct Cli {
     // ---- identity ----
@@ -306,27 +318,46 @@ fn cmd_profiles_list(json: bool) -> Result<()> {
     let profiles = srunc::profiles::PROFILES;
     if json {
         println!("{}", serde_json::to_string(profiles)?);
-    } else {
-        use anstream::println;
-        use anstyle::Style;
-        let bold = Style::new().bold();
-        let dim = Style::new().dimmed();
-        if profiles.is_empty() {
-            println!("{dim}(no profiles shipped){dim:#}");
-            return Ok(());
-        }
-        for p in profiles {
-            println!("{bold}{}{bold:#}", p.id);
-            println!("  {dim}label{dim:#}  {}", p.label);
-            println!(
-                "  {dim}host{dim:#}   {}",
-                p.host.unwrap_or("— (auto-discover) —")
-            );
-            println!(
-                "  {dim}ac_id{dim:#}  {}",
-                p.ac_id.unwrap_or("— (auto-discover) —")
-            );
-        }
+        return Ok(());
+    }
+    use anstream::println;
+    use anstyle::{AnsiColor, Style};
+    let bold = Style::new().bold();
+    let dim = Style::new().dimmed();
+    let green = Style::new().fg_color(Some(AnsiColor::Green.into()));
+    let yellow = Style::new().fg_color(Some(AnsiColor::Yellow.into()));
+    if profiles.is_empty() {
+        println!("{dim}(no profiles shipped){dim:#}");
+        return Ok(());
+    }
+    // One-line legend up top so the glyphs aren't cryptic.
+    println!(
+        "{dim}legend:{dim:#} {green}✓{green:#} verified · {yellow}~{yellow:#} label-only \
+         (falls through to captive-portal auto-discovery)"
+    );
+    println!();
+    for p in profiles {
+        // A profile is "verified" iff *both* host and ac_id are pinned;
+        // label-only otherwise. Matches the semantic in profiles.rs.
+        let verified = p.host.is_some() && p.ac_id.is_some();
+        let (glyph_style, glyph) = if verified {
+            (green, "✓")
+        } else {
+            (yellow, "~")
+        };
+        println!(
+            "{glyph_style}{glyph}{glyph_style:#} {bold}{}{bold:#}",
+            p.id
+        );
+        println!("  {dim}label{dim:#}  {}", p.label);
+        println!(
+            "  {dim}host{dim:#}   {}",
+            p.host.unwrap_or("— (auto-discover) —")
+        );
+        println!(
+            "  {dim}ac_id{dim:#}  {}",
+            p.ac_id.unwrap_or("— (auto-discover) —")
+        );
     }
     Ok(())
 }
@@ -403,14 +434,34 @@ fn cmd_login(
 
     client
         .login(&creds, &r.ac_id, &s.ip)
-        .map_err(|e| anyhow!("login failed: {e}"))?;
+        .context("login failed")?;
     info!("login: ok");
+
+    // Best-effort confirmation summary: re-query status and show "logged in
+    // as <user> (IP <ip>)". Skipped under --json (which would expect machine
+    // output from login) and under --daemonize (an extra HTTP round-trip on
+    // every keepalive cycle is wasteful). Errors here don't fail login.
+    if !cli.json && !s.daemonize {
+        if let Ok(st) = client.status(&r.ac_id) {
+            print_login_confirmation(&st);
+        }
+    }
 
     if keepalive {
         let stop = install_signal_handler()?;
         run_keepalive(stop, interval, retry, campus_only, &r.host)?;
     }
     Ok(())
+}
+
+fn print_login_confirmation(st: &srunc::Status) {
+    use anstream::println;
+    use anstyle::{AnsiColor, Style};
+    let green = Style::new().fg_color(Some(AnsiColor::Green.into())).bold();
+    let dim = Style::new().dimmed();
+    let user = st.username.as_deref().unwrap_or("?");
+    let ip = st.ip.as_deref().unwrap_or("?");
+    println!("{green}→ logged in as {green:#}{user} {dim}(IP {ip}){dim:#}");
 }
 
 fn cmd_logout(cli: &Cli) -> Result<()> {
@@ -429,7 +480,7 @@ fn cmd_logout(cli: &Cli) -> Result<()> {
     let client = Client::new(r.endpoints, s.timeout);
     client
         .logout(&s.username, &r.ac_id, &s.ip)
-        .map_err(|e| anyhow!("logout failed: {e}"))?;
+        .context("logout failed")?;
     info!("logout: ok");
     Ok(())
 }
@@ -438,9 +489,7 @@ fn cmd_status(cli: &Cli) -> Result<()> {
     let s = resolve(cli)?;
     let r = resolve_target(&s)?;
     let client = Client::new(r.endpoints, s.timeout);
-    let st = client
-        .status(&r.ac_id)
-        .map_err(|e| anyhow!("status query failed: {e}"))?;
+    let st = client.status(&r.ac_id).context("status query failed")?;
     if cli.json {
         println!("{}", serde_json::to_string(&st)?);
     } else {
@@ -600,8 +649,50 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("error: {e:#}");
+            print_error(&e, cli.verbose);
             ExitCode::FAILURE
         }
+    }
+}
+
+/// User-facing rendering of the top-level error.
+///
+/// Default (no `-v`): walk the anyhow chain looking for the first typed
+/// `srunc::Error` source, then print its short `user_message()` prefixed
+/// by the anyhow context (e.g. "login failed: wrong password (E2553)").
+/// If the chain has no typed leaf, fall back to the top-level Display.
+///
+/// With `-v`: emit the full chain (`{:#}`) so devs get all the context.
+fn print_error(e: &anyhow::Error, verbose: u8) {
+    use anstream::eprintln;
+    use anstyle::{AnsiColor, Style};
+    let red = Style::new().fg_color(Some(AnsiColor::Red.into())).bold();
+    let dim = Style::new().dimmed();
+    if verbose > 0 {
+        eprintln!("{red}error:{red:#} {e:#}");
+        return;
+    }
+    let typed = e
+        .chain()
+        .find_map(|c| c.downcast_ref::<srunc::Error>())
+        .map(|s| s.user_message());
+    let top = e.to_string();
+    match typed {
+        // anyhow's top-level message is the .context() string we attached
+        // (e.g. "login failed"); show that as the headline and the typed
+        // message as the explanation. If the top-level *is* the typed
+        // error (no context wrapper), avoid duplication.
+        Some(msg) if msg.as_ref() != top => {
+            eprintln!("{red}error:{red:#} {top}: {msg}");
+            eprintln!("       {dim}run with -v for full detail{dim:#}");
+        }
+        Some(msg) => {
+            eprintln!("{red}error:{red:#} {msg}");
+            eprintln!("       {dim}run with -v for full detail{dim:#}");
+        }
+        // No typed leaf — fall back to anyhow's full chain so generic
+        // failures (config parse, missing field, …) still carry their
+        // detail.
+        None => eprintln!("{red}error:{red:#} {e:#}"),
     }
 }
