@@ -51,10 +51,21 @@ impl Client {
 
         let raw = self.get_jsonp(&self.endpoints.user_info, &[("ip", &ip)])?;
         let info: UserInfoResp = serde_json::from_str(&raw)?;
+        let online = info.error == "ok";
+        let username = info.user_name.clone();
+        // Only surface the extra fields when we trust the schema for this host.
+        // For everyone else, `details` stays `None` and UIs render bare-bones.
+        let details = if online && crate::profiles::host_supports_rich_status(&self.endpoints.host)
+        {
+            Some(info.into_details())
+        } else {
+            None
+        };
         Ok(Status {
-            online: info.error == "ok",
-            username: info.user_name,
+            online,
+            username,
             ip: Some(ip),
+            details,
         })
     }
 

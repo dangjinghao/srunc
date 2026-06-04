@@ -12,10 +12,19 @@ use httpmock::prelude::*;
 use srunc::{Client, Credentials, Endpoints};
 
 fn endpoints_for(server: &MockServer) -> Endpoints {
+    endpoints_with_host(server, "mock.local")
+}
+
+/// Build `Endpoints` whose URLs point at the mock server but whose recorded
+/// `host` is an arbitrary string. Tests that exercise the "verified-schema"
+/// path pass `auth4.tsinghua.edu.cn` here to trip the host check in
+/// `Client::status`.
+fn endpoints_with_host(server: &MockServer, host: &str) -> Endpoints {
     // `from_host` builds `https://...`; the mock is plain HTTP, so build
     // the four URLs by hand pointing at the mock server.
     let base = server.base_url();
     Endpoints {
+        host: host.to_string(),
         login: format!("{base}/cgi-bin/srun_portal"),
         challenge: format!("{base}/cgi-bin/get_challenge"),
         user_info: format!("{base}/cgi-bin/rad_user_info"),
@@ -88,6 +97,88 @@ fn status_online_extracts_user_and_ip() {
     assert!(st.online);
     assert_eq!(st.username.as_deref(), Some("alice"));
     assert_eq!(st.ip.as_deref(), Some("10.0.0.42"));
+}
+
+#[test]
+fn status_basic_response_omits_details_field() {
+    // A minimal `rad_user_info` (only `error` + `user_name`) on an unverified
+    // host should leave `Status::details` as `None`.
+    let server = MockServer::start();
+    server.mock(|when, then| {
+        when.method(GET).path("/srun_portal_pc");
+        then.status(200)
+            .body(r#"<html>online, ip : "10.0.0.42"</html>"#);
+    });
+    server.mock(|when, then| {
+        when.method(GET).path("/cgi-bin/rad_user_info");
+        then.status(200)
+            .body(format!(r#"{CB}({{"error":"ok","user_name":"alice"}})"#));
+    });
+
+    let client = Client::new(endpoints_for(&server), Duration::from_secs(2));
+    let st = client.status("1").unwrap();
+    assert!(st.online);
+    assert!(
+        st.details.is_none(),
+        "unverified host should not surface details"
+    );
+}
+
+#[test]
+fn status_rich_details_for_verified_host() {
+    // The captured-then-sanitized THU sample, served from a mock whose
+    // recorded host matches the verified list. Asserts that `details` is
+    // populated with the expected fields.
+    let server = MockServer::start();
+    let body = std::fs::read_to_string("tests/fixtures/thu_rad_user_info.json")
+        .expect("THU fixture readable");
+    server.mock(|when, then| {
+        when.method(GET).path("/srun_portal_pc");
+        then.status(200)
+            .body(r#"<html>online, ip : "10.0.0.2"</html>"#);
+    });
+    server.mock(|when, then| {
+        when.method(GET).path("/cgi-bin/rad_user_info");
+        then.status(200).body(format!("{CB}({body})"));
+    });
+
+    let endpoints = endpoints_with_host(&server, "auth4.tsinghua.edu.cn");
+    let client = Client::new(endpoints, Duration::from_secs(2));
+    let st = client.status("1").unwrap();
+    assert!(st.online);
+    assert_eq!(st.username.as_deref(), Some("alice"));
+    let d = st.details.expect("THU host yields details");
+    assert_eq!(d.plan.as_deref(), Some("特殊学生"));
+    assert_eq!(d.user_mac.as_deref(), Some("00-11-22-33-44-55"));
+    assert_eq!(d.online_device_total, Some(3));
+    assert_eq!(d.sum_bytes, Some(1_545_951_597));
+    assert_eq!(d.sum_seconds, Some(325_134));
+    assert_eq!(d.keepalive_time, Some(1_780_558_656));
+}
+
+#[test]
+fn status_rich_details_suppressed_for_unverified_host() {
+    // Same response body, but a host that's NOT on the verified list. The
+    // client must NOT surface details — protects users from seeing fields
+    // whose semantics we haven't confirmed for their deployment.
+    let server = MockServer::start();
+    let body = std::fs::read_to_string("tests/fixtures/thu_rad_user_info.json")
+        .expect("THU fixture readable");
+    server.mock(|when, then| {
+        when.method(GET).path("/srun_portal_pc");
+        then.status(200)
+            .body(r#"<html>online, ip : "10.0.0.2"</html>"#);
+    });
+    server.mock(|when, then| {
+        when.method(GET).path("/cgi-bin/rad_user_info");
+        then.status(200).body(format!("{CB}({body})"));
+    });
+
+    let endpoints = endpoints_with_host(&server, "portal.example.edu");
+    let client = Client::new(endpoints, Duration::from_secs(2));
+    let st = client.status("1").unwrap();
+    assert!(st.online);
+    assert!(st.details.is_none(), "non-whitelisted host must not surface details");
 }
 
 #[test]

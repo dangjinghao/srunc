@@ -209,6 +209,20 @@ pub fn by_id(id: &str) -> Option<&'static Profile> {
     PROFILES.iter().find(|p| p.id == id)
 }
 
+/// Hosts whose `rad_user_info` response shape we've verified end-to-end —
+/// `Client::status` is allowed to surface the verified-schema extras
+/// (`Status::details`) only for these. Add a host here when you've sampled
+/// a real online response and updated `StatusDetails` rendering accordingly.
+const RICH_HOSTS: &[&str] = &["auth4.tsinghua.edu.cn"];
+
+/// `true` if `rad_user_info` from this host is known to use the field names
+/// we map into `StatusDetails`. Match is case-insensitive on the host.
+pub fn host_supports_rich_status(host: &str) -> bool {
+    RICH_HOSTS
+        .iter()
+        .any(|h| host.eq_ignore_ascii_case(h))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

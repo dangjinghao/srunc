@@ -67,6 +67,47 @@ function statusStyle() {
 	].join('\n'));
 }
 
+// Format bytes as IEC units (KiB/MiB/GiB/...). Matches the CLI's format_bytes.
+function fmtBytes(n) {
+	if (typeof n !== 'number' || !isFinite(n)) return null;
+	if (n < 1024) return n + ' B';
+	var units = ['KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+	var v = n / 1024, u = 0;
+	while (v >= 1024 && u + 1 < units.length) { v /= 1024; u += 1; }
+	return v.toFixed(2) + ' ' + units[u];
+}
+
+// Coarse duration: "Xd Yh", "Yh Zm", or "Zm". Matches the CLI's format_seconds.
+function fmtSeconds(s) {
+	if (typeof s !== 'number' || !isFinite(s)) return null;
+	var d = Math.floor(s / 86400);
+	var h = Math.floor((s % 86400) / 3600);
+	var m = Math.floor((s % 3600) / 60);
+	if (d > 0) return d + 'd ' + h + 'h';
+	if (h > 0) return h + 'h ' + m + 'm';
+	return m + 'm';
+}
+
+// "just now" / "Xs ago" / ... — same buckets as the CLI's format_ago.
+function fmtAgo(ts) {
+	if (typeof ts !== 'number' || !isFinite(ts)) return null;
+	var now = Math.floor(Date.now() / 1000);
+	if (ts > now) return String(ts);
+	var d = now - ts;
+	if (d < 5) return _('just now');
+	if (d < 60) return d + 's ' + _('ago');
+	if (d < 3600) return Math.floor(d / 60) + 'm ' + _('ago');
+	if (d < 86400) return Math.floor(d / 3600) + 'h ' + _('ago');
+	return Math.floor(d / 86400) + 'd ' + _('ago');
+}
+
+function kvRow(k, v) {
+	return E('tr', {}, [
+		E('td', { 'class': 'srunc-k' }, k),
+		E('td', { 'class': 'srunc-v' }, v)
+	]);
+}
+
 function renderStatus(s, profileName, keepalive) {
 	s = s || {};
 	var online = !!s.online;
@@ -85,16 +126,27 @@ function renderStatus(s, profileName, keepalive) {
 	var children = [ E('div', { 'class': 'srunc-status' }, head) ];
 
 	if (online) {
-		children.push(E('table', { 'class': 'srunc-kv' }, [
-			E('tr', {}, [
-				E('td', { 'class': 'srunc-k' }, _('User')),
-				E('td', { 'class': 'srunc-v' }, s.username || '?')
-			]),
-			E('tr', {}, [
-				E('td', { 'class': 'srunc-k' }, _('IP')),
-				E('td', { 'class': 'srunc-v' }, s.ip || '?')
-			])
-		]));
+		var rows = [
+			kvRow(_('User'), s.username || '?'),
+			kvRow(_('IP'), s.ip || '?')
+		];
+		// `details` is only populated for portals whose rad_user_info schema
+		// the daemon has verified — currently THU. Other deployments get the
+		// bare-bones two-row view above.
+		var d = s.details;
+		if (d) {
+			if (d.plan)                rows.push(kvRow(_('Plan'),    d.plan));
+			if (d.user_mac)            rows.push(kvRow(_('MAC'),     d.user_mac));
+			if (typeof d.online_device_total === 'number')
+				rows.push(kvRow(_('Devices'), String(d.online_device_total)));
+			var used = fmtBytes(d.sum_bytes);
+			if (used)                  rows.push(kvRow(_('Used'),    used));
+			var time = fmtSeconds(d.sum_seconds);
+			if (time)                  rows.push(kvRow(_('Time'),    time));
+			var ka = fmtAgo(d.keepalive_time);
+			if (ka)                    rows.push(kvRow(_('Keepalive'), ka));
+		}
+		children.push(E('table', { 'class': 'srunc-kv' }, rows));
 	}
 
 	return E('div', {}, children);

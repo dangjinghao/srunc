@@ -455,18 +455,92 @@ fn print_status_human(st: &srunc::Status) {
     let green = Style::new().fg_color(Some(AnsiColor::Green.into())).bold();
     let dim = Style::new().dimmed();
     let bold = Style::new().bold();
-    if st.online {
-        println!("{green}● Online{green:#}");
-        println!(
-            "  {dim}User{dim:#}  {bold}{}{bold:#}",
-            st.username.as_deref().unwrap_or("?")
-        );
-        println!(
-            "  {dim}IP{dim:#}    {bold}{}{bold:#}",
-            st.ip.as_deref().unwrap_or("?")
-        );
-    } else {
+    if !st.online {
         println!("{dim}○ Offline{dim:#}");
+        return;
+    }
+    println!("{green}● Online{green:#}");
+    let row = |k: &str, v: &str| {
+        // Two-space prefix, label column padded to 10 so the widest label
+        // ("Keepalive") still gets a separator before its value.
+        println!("  {dim}{k:<10}{dim:#}{bold}{v}{bold:#}");
+    };
+    row("User", st.username.as_deref().unwrap_or("?"));
+    row("IP", st.ip.as_deref().unwrap_or("?"));
+    let Some(d) = &st.details else { return };
+    if let Some(plan) = &d.plan {
+        row("Plan", plan);
+    }
+    if let Some(mac) = &d.user_mac {
+        row("MAC", mac);
+    }
+    if let Some(n) = d.online_device_total {
+        row("Devices", &n.to_string());
+    }
+    if let Some(b) = d.sum_bytes {
+        row("Used", &format_bytes(b));
+    }
+    if let Some(s) = d.sum_seconds {
+        row("Time", &format_seconds(s));
+    }
+    if let Some(t) = d.keepalive_time {
+        row("Keepalive", &format_ago(t));
+    }
+}
+
+/// Human-readable byte size — IEC units, 2 decimal places past KiB.
+fn format_bytes(n: u64) -> String {
+    const KIB: f64 = 1024.0;
+    let n = n as f64;
+    if n < KIB {
+        return format!("{} B", n as u64);
+    }
+    let units = ["KiB", "MiB", "GiB", "TiB", "PiB"];
+    let mut v = n / KIB;
+    let mut u = 0;
+    while v >= KIB && u + 1 < units.len() {
+        v /= KIB;
+        u += 1;
+    }
+    format!("{v:.2} {}", units[u])
+}
+
+/// Coarse duration: "Xd Yh", "Yh Zm", or "Zm" depending on magnitude.
+fn format_seconds(s: u64) -> String {
+    let d = s / 86_400;
+    let h = (s % 86_400) / 3600;
+    let m = (s % 3600) / 60;
+    if d > 0 {
+        format!("{d}d {h}h")
+    } else if h > 0 {
+        format!("{h}h {m}m")
+    } else {
+        format!("{m}m")
+    }
+}
+
+/// "Just now" / "Xs ago" / "Xm ago" / "Xh ago" / RFC-3339-ish for older.
+/// Falls back to the raw timestamp if the clock can't be read.
+fn format_ago(unix_ts: u64) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) else {
+        return unix_ts.to_string();
+    };
+    let now = now.as_secs();
+    if unix_ts > now {
+        return unix_ts.to_string();
+    }
+    let d = now - unix_ts;
+    if d < 5 {
+        "just now".into()
+    } else if d < 60 {
+        format!("{d}s ago")
+    } else if d < 3600 {
+        format!("{}m ago", d / 60)
+    } else if d < 86_400 {
+        format!("{}h ago", d / 3600)
+    } else {
+        format!("{}d ago", d / 86_400)
     }
 }
 

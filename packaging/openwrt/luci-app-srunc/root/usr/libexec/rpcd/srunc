@@ -2,7 +2,11 @@
 # rpcd object exposing srunc to LuCI / ubus.
 #
 # Methods:
-#   status   {"section": "<name>"}  -> {"online":bool, "username":str|null, "ip":str|null}
+#   status   {"section": "<name>"}  -> {"online":bool, "username":str|null,
+#                                       "ip":str|null,
+#                                       "details": null | {plan, user_mac, sum_bytes, sum_seconds, online_device_total, keepalive_time, ...}}
+#            `details` is populated only when the configured portal host has a
+#            verified rad_user_info schema (currently auth4.tsinghua.edu.cn).
 #   login    {}                     -> {"ok":bool}        # restarts the procd service
 #   logout   {}                     -> {"ok":bool}        # stops the procd service
 #   restart  {}                     -> {"ok":bool}
