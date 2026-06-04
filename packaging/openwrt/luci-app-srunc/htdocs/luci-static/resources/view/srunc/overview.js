@@ -264,7 +264,7 @@ function renderStatus(s, profileName, keepalive, portal) {
 			var time = fmtSeconds(d.sum_seconds);
 			if (time)                  rows.push(kvRow(_('Time'),    time));
 			var ka = fmtAgo(d.keepalive_time);
-			if (ka)                    rows.push(kvRow(_('Keepalive'), ka));
+			if (ka)                    rows.push(kvRow(_('Last keepalive'), ka));
 		}
 	}
 

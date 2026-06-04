@@ -1,0 +1,300 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Project-Id-Version: luci-app-srunc\n"
+"Language: zh_Hans\n"
+"Language-Team: Simplified Chinese\n"
+"MIME-Version: 1.0\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# ---- menu / titles ----
+
+msgid "srunc"
+msgstr "srunc"
+
+msgid "srunc — srun captive-portal auth"
+msgstr "srunc — srun (深澜) 校园网认证"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Log"
+msgstr "日志"
+
+# ---- top-level form blurb ----
+
+msgid "Set username and password; the portal host and ac_id are auto-discovered from the captive redirect, so the override fields can stay blank. Pick a deployment profile below to use built-in defaults instead."
+msgstr "填好用户名和密码即可使用；认证主机和 ac_id 会从校园网弹出页面自动识别，所以下面的覆盖字段可以留空。也可以选择一个预置部署，套用内置的默认值。"
+
+# ---- form tabs ----
+
+msgid "Basic"
+msgstr "基本"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Keepalive"
+msgstr "保活"
+
+# ---- basic tab ----
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Deployment"
+msgstr "部署"
+
+msgid "Pick your srun deployment to use built-in portal defaults (host + ac_id). Choose <em>Custom</em> to enter them manually under <em>Advanced</em> or to rely on captive-portal auto-discovery."
+msgstr "选择你所在的 srun 部署，套用内置的认证主机和 ac_id。选择 <em>Custom</em> 则可在 <em>高级</em> 中手填，或交由认证页面自动识别。"
+
+msgid "— Custom / auto —"
+msgstr "— 自定义 / 自动 —"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Show/hide password"
+msgstr "显示/隐藏密码"
+
+# ---- advanced tab ----
+
+msgid "Portal host"
+msgstr "认证主机"
+
+msgid "Override the auth host. Picked profile wins over auto-discovery; this field wins over both."
+msgstr "覆盖认证主机。预置部署优先于自动识别；该字段优先级高于二者。"
+
+msgid "ac_id"
+msgstr "ac_id"
+
+msgid "Override the access-controller id. Picked profile wins over auto-discovery; this field wins over both."
+msgstr "覆盖接入控制器 ID。预置部署优先于自动识别；该字段优先级高于二者。"
+
+msgid "Discover from gateway"
+msgstr "从网关探测"
+
+msgid "Discover"
+msgstr "探测"
+
+msgid "Probe the default gateway for the captive-portal redirect and prefill <em>Portal host</em> + <em>ac_id</em> above."
+msgstr "向默认网关探测一次校园网认证页，自动填入上面的 <em>认证主机</em> 和 <em>ac_id</em>。"
+
+msgid "Probing…"
+msgstr "探测中…"
+
+msgid "Discovered host %s, ac_id %s"
+msgstr "已识别：主机 %s，ac_id %s"
+
+msgid "Discover failed: %s"
+msgstr "探测失败：%s"
+
+msgid "no captive redirect found"
+msgstr "未发现校园网认证页"
+
+msgid "Use http://"
+msgstr "使用 http://"
+
+msgid "Use plain <code>http://</code> instead of <code>https://</code> for portal requests. Leave off unless your portal cert is self-signed AND you trust the LAN you're on; otherwise authentication credentials transit unencrypted."
+msgstr "使用 <code>http://</code> 明文请求认证接口，而非 <code>https://</code>。除非你的认证主机使用自签证书、并且你信任当前局域网，否则不要开启；否则用户名密码会明文传输。"
+
+msgid "HTTP timeout (seconds)"
+msgstr "HTTP 超时（秒）"
+
+msgid "Log level"
+msgstr "日志级别"
+
+msgid "Verbosity of the background daemon. Higher levels show more in the <em>Log</em> tab."
+msgstr "后台守护进程的日志详尽程度。级别越高，<em>日志</em> 标签里显示得越多。"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Warning"
+msgstr "警告"
+
+msgid "Info"
+msgstr "信息"
+
+msgid "Debug"
+msgstr "调试"
+
+# ---- keepalive tab ----
+
+msgid "Enable keepalive"
+msgstr "启用保活"
+
+msgid "Pass <code>-k</code> to srunc so it keeps the session alive."
+msgstr "向 srunc 传入 <code>-k</code>，让它持续保持会话。"
+
+msgid "In-campus keepalive probe"
+msgstr "校内保活探测"
+
+msgid "Probe an in-campus URL instead of the public internet (useful where public traffic is billed)."
+msgstr "向校内 URL 而非公网发起探测（适用于公网流量计费的场景）。"
+
+msgid "Probe interval (seconds)"
+msgstr "探测间隔（秒）"
+
+msgid "Consecutive failures before exit"
+msgstr "连续失败次数后退出"
+
+# ---- overview: status card ----
+
+msgid "Online"
+msgstr "在线"
+
+msgid "Offline"
+msgstr "离线"
+
+msgid "keepalive"
+msgstr "保活中"
+
+msgid "Portal"
+msgstr "认证主机"
+
+msgid "auto-discovered"
+msgstr "自动识别"
+
+msgid "User"
+msgstr "用户"
+
+msgid "IP"
+msgstr "IP"
+
+msgid "IPv6"
+msgstr "IPv6"
+
+msgid "MAC"
+msgstr "MAC"
+
+msgid "Plan"
+msgstr "套餐"
+
+msgid "Devices"
+msgstr "设备数"
+
+msgid "Used"
+msgstr "已用流量"
+
+msgid "Time"
+msgstr "已用时长"
+
+msgid "Last keepalive"
+msgstr "上次保活"
+
+msgid "Session"
+msgstr "会话"
+
+msgid "Online devices"
+msgstr "在线设备"
+
+# ---- overview: setup banner ----
+
+msgid "Setup required."
+msgstr "需要先完成设置。"
+
+msgid "No username configured yet. "
+msgstr "尚未配置用户名。"
+
+msgid "Open Settings"
+msgstr "前往设置"
+
+msgid "to enter your portal credentials."
+msgstr "填入校园网账号。"
+
+# ---- overview: actions / notifications ----
+
+msgid "Login now"
+msgstr "立即登录"
+
+msgid "Logout"
+msgstr "退出"
+
+msgid "Restart service"
+msgstr "重启服务"
+
+msgid "Working…"
+msgstr "处理中…"
+
+msgid "login"
+msgstr "登录"
+
+msgid "logout"
+msgstr "退出"
+
+msgid "restart"
+msgstr "重启"
+
+msgid "%s: ok"
+msgstr "%s：成功"
+
+msgid "%s: %s"
+msgstr "%s：%s"
+
+msgid "failed"
+msgstr "失败"
+
+# ---- overview: copy buttons ----
+
+msgid "Copy \"%s\""
+msgstr "复制 \"%s\""
+
+msgid "Copied: %s"
+msgstr "已复制：%s"
+
+msgid "Could not copy to clipboard."
+msgstr "复制到剪贴板失败。"
+
+# ---- timestamps ----
+
+msgid "just now"
+msgstr "刚刚"
+
+msgid "ago"
+msgstr "前"
+
+# ---- log view ----
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Pause auto-refresh"
+msgstr "暂停自动刷新"
+
+msgid "Copy"
+msgstr "复制"
+
+msgid "Copy log to clipboard"
+msgstr "复制日志到剪贴板"
+
+msgid "Log copied to clipboard."
+msgstr "日志已复制到剪贴板。"
+
+msgid "Could not copy log: %s"
+msgstr "复制日志失败：%s"
+
+msgid "unknown error"
+msgstr "未知错误"
+
+msgid "No log output yet."
+msgstr "暂无日志输出。"
+
+msgid "Recent srunc messages from the system log. Adjust how much is shown with <em>Log level</em> under Settings → Advanced."
+msgstr "来自系统日志的近期 srunc 消息。可在 <em>设置 → 高级</em> 中通过 <em>日志级别</em> 调节详尽程度。"
+
+msgid "Service running"
+msgstr "服务运行中"
+
+msgid "Service stopped"
+msgstr "服务已停止"
