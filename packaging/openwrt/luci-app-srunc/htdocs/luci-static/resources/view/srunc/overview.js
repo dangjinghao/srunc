@@ -65,6 +65,17 @@ function fmtUptime(sec) {
 	return fmtSeconds(sec);
 }
 
+function extractLastError(logText) {
+	if (!logText) return null;
+	var lines = String(logText).split('\n');
+	for (var i = lines.length - 1; i >= 0; i--) {
+		if (!/\berror:?\b/i.test(lines[i])) continue;
+		var m = lines[i].match(/srunc\[\d+\]:\s*(.+)/);
+		if (m) return m[1].trim().substring(0, 150);
+	}
+	return null;
+}
+
 // --- clipboard ------------------------------------------------------------
 
 function copyText(text) {
@@ -144,15 +155,25 @@ function dashboardStyle() {
 		'.srunc-header h2{margin:0}',
 		'.srunc-meta{opacity:.7;font-size:.85em;font-family:ui-monospace,Menlo,Consolas,monospace}',
 		'.srunc-footer{margin-top:1.5em;padding-top:.6em;border-top:1px solid rgba(128,128,128,.25);opacity:.65;font-size:.8em;font-family:ui-monospace,Menlo,Consolas,monospace}',
-		// status hero
-		'.srunc-status{display:flex;align-items:center;gap:.55em;flex-wrap:wrap;margin:.3em 0 1em}',
-		'.srunc-pill{display:inline-flex;align-items:center;gap:.45em;padding:.28em .9em;border-radius:999px;font-weight:600;line-height:1.5;border:1px solid transparent}',
-		'.srunc-on{color:#1a8f3c;background:rgba(40,160,70,.14);border-color:rgba(40,160,70,.40)}',
-		'.srunc-off{color:#8a8a8a;background:rgba(128,128,128,.14);border-color:rgba(128,128,128,.38)}',
-		'.srunc-dot{width:.58em;height:.58em;border-radius:50%;background:currentColor;flex:0 0 auto}',
+		// status card (three-state)
+		'.srunc-card{padding:1em 1.2em;border-radius:10px;border:1px solid transparent;margin:.3em 0 1em}',
+		'.srunc-card-ok{background:rgba(40,160,70,.10);border-color:rgba(40,160,70,.35)}',
+		'.srunc-card-warn{background:rgba(240,180,40,.12);border-color:rgba(240,180,40,.40)}',
+		'.srunc-card-off{background:rgba(128,128,128,.08);border-color:rgba(128,128,128,.30)}',
+		'.srunc-card-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5em;margin-bottom:.6em}',
+		'.srunc-card-main{display:flex;align-items:center;gap:.6em;font-size:1.15em;font-weight:600}',
+		'.srunc-card-dot{width:.7em;height:.7em;border-radius:50%;flex:0 0 auto}',
+		'.srunc-card-ok .srunc-card-dot{background:#1a8f3c}',
+		'.srunc-card-warn .srunc-card-dot{background:#d4a017;animation:srunc-pulse 1.5s ease-in-out infinite}',
+		'.srunc-card-off .srunc-card-dot{background:#8a8a8a}',
+		'@keyframes srunc-pulse{0%,100%{opacity:1}50%{opacity:.35}}',
+		'.srunc-card-badges{display:flex;gap:.4em;flex-wrap:wrap}',
+		'.srunc-card-error{margin-top:.5em;padding:.4em .7em;border-radius:6px;background:rgba(240,180,40,.12);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82em;opacity:.9;word-break:break-word}',
+		'.srunc-card-actions{display:flex;flex-wrap:wrap;gap:.5em;margin-top:.8em;padding-top:.6em;border-top:1px solid rgba(128,128,128,.15)}',
+		// badge
 		'.srunc-badge{display:inline-flex;align-items:center;padding:.2em .6em;border-radius:6px;background:rgba(128,128,128,.15);font-size:.85em;font-weight:500}',
 		// kv grid (two responsive columns)
-		'.srunc-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:2.5em;row-gap:.1em;margin:.2em 0 .8em}',
+		'.srunc-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:2.5em;row-gap:.1em;margin:.2em 0 0}',
 		'@media(max-width:768px){.srunc-grid{grid-template-columns:1fr}}',
 		'.srunc-grid-col h4{margin:0 0 .3em 0;opacity:.7;font-size:.85em;font-weight:600;text-transform:uppercase;letter-spacing:.04em}',
 		'.srunc-kv{border-collapse:collapse;width:100%;margin:0 0 .6em}',
@@ -180,16 +201,7 @@ function dashboardStyle() {
 		'details.srunc-advanced > summary{cursor:pointer;padding:.45em 0;font-weight:600;opacity:.8;list-style:none}',
 		'details.srunc-advanced > summary::-webkit-details-marker{display:none}',
 		'details.srunc-advanced > summary::before{content:"▸ ";opacity:.6}',
-		'details.srunc-advanced[open] > summary::before{content:"▾ "}',
-		// actions row
-		'.srunc-actions{display:flex;flex-wrap:wrap;gap:.5em;margin:.6em 0 1em}',
-		// log preview
-		'.srunc-log-card{margin:1.2em 0 0;border:1px solid rgba(128,128,128,.25);border-radius:6px;padding:.5em .8em;background:rgba(128,128,128,.05)}',
-		'.srunc-log-card-head{display:flex;align-items:center;gap:.8em;flex-wrap:wrap;margin-bottom:.4em}',
-		'.srunc-log-card pre{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8em;line-height:1.4;max-height:18em;overflow:auto;white-space:pre-wrap;word-break:break-word;opacity:.85}',
-		'.srunc-log-card-actions{margin-left:auto;display:flex;gap:.4em}',
-		'.srunc-log-card-actions a{text-decoration:none;opacity:.7;font-size:.85em}',
-		'.srunc-log-card-actions a:hover{opacity:1}'
+		'details.srunc-advanced[open] > summary::before{content:"▾ "}'
 	].join('\n'));
 }
 
@@ -218,65 +230,87 @@ function renderFooter(status, version, gateway) {
 	return E('div', { 'class': 'srunc-footer' }, bits.join(' · '));
 }
 
-// --- status hero & KV grid ------------------------------------------------
+// --- status card (three-state: authenticated / connecting / disconnected) ---
 
-function renderStatusHero(status, profileName, keepaliveEnabled) {
-	var online = !!(status && status.online);
-	var bits = [
-		E('span', { 'class': 'srunc-pill ' + (online ? 'srunc-on' : 'srunc-off') }, [
-			E('span', { 'class': 'srunc-dot' }),
-			online ? _('Online') : _('Offline')
-		])
-	];
-	if (profileName) bits.push(E('span', { 'class': 'srunc-badge' }, profileName));
-	if (online && keepaliveEnabled) bits.push(E('span', { 'class': 'srunc-badge' }, _('keepalive')));
-	return E('div', { 'class': 'srunc-status' }, bits);
-}
-
-function renderKvGrid(status, profiles) {
+function renderStatusCard(status, serviceInfo, profiles, keepaliveEnabled, lastError, logoutBtn, restartBtn) {
 	status = status || {};
 	var d = status.details || {};
+	var online = !!status.online;
+	var running = !!(serviceInfo && serviceInfo.running);
+	var state = online ? 'authenticated' : (running ? 'connecting' : 'disconnected');
 
-	// Session column.
-	var sessionRows = [
-		status.online ? kvRow(_('User'), status.username || '?', { copyable: true }) : null,
-		status.online ? kvRow(_('IPv4'), status.ip || d.online_ip || '?', { copyable: true }) : null,
-		(status.online && d.devices) ? kvRow(_('IPv6'), pickCurrentIp6(d.devices, status.ip || d.online_ip), { copyable: true }) : null,
-		(status.online && d.user_mac) ? kvRow(_('MAC'), d.user_mac, { copyable: true }) : null,
-		(status.online && typeof d.online_device_total === 'number') ? kvRow(_('Devices'), String(d.online_device_total)) : null,
-		kvRow(_('Portal'), status.resolved_host || resolvedHostFromConfig(profiles) || '?', { copyable: !!status.resolved_host }),
-		kvRow(_('ac_id'), status.resolved_ac_id || E('span', { 'class': 'srunc-auto' }, _('auto-discover'))),
-		(status.online && d.keepalive_time) ? kvRow(_('Last kp'), fmtAgo(d.keepalive_time)) : null
-	].filter(Boolean);
+	var cardClass = 'srunc-card ' + ({ authenticated: 'srunc-card-ok', connecting: 'srunc-card-warn', disconnected: 'srunc-card-off' })[state];
+	var stateLabel = ({ authenticated: _('Authenticated'), connecting: _('Connecting…'), disconnected: _('Disconnected') })[state];
 
-	// Plan & quota column (only when details present, i.e. THU).
-	var quotaRows = [];
-	if (status.online && status.details) {
-		quotaRows = [
-			d.plan ? kvRow(_('Plan'), d.plan) : null,
-			d.billing ? kvRow(_('Billing'), d.billing) : null,
-			(typeof d.sum_bytes === 'number') ? kvRow(_('Used'), fmtBytes(d.sum_bytes)) : null,
-			(typeof d.bytes_in === 'number') ? kvRow(_('↓ in'), fmtBytes(d.bytes_in)) : null,
-			(typeof d.bytes_out === 'number') ? kvRow(_('↑ out'), fmtBytes(d.bytes_out)) : null,
-			(typeof d.sum_seconds === 'number') ? kvRow(_('Time used'), fmtSeconds(d.sum_seconds)) : null,
-			(typeof d.user_balance === 'number' && d.user_balance > 0) ? kvRow(_('Balance'), String(d.user_balance)) : null,
-			d.add_time ? kvRow(_('Active since'), fmtDate(d.add_time)) : null
+	var badges = [];
+	var pLabel = profileLabel(profiles);
+	if (pLabel) badges.push(E('span', { 'class': 'srunc-badge' }, pLabel));
+	if (online && keepaliveEnabled) badges.push(E('span', { 'class': 'srunc-badge' }, _('keepalive')));
+
+	var head = E('div', { 'class': 'srunc-card-head' }, [
+		E('div', { 'class': 'srunc-card-main' }, [
+			E('span', { 'class': 'srunc-card-dot' }),
+			stateLabel
+		]),
+		badges.length ? E('div', { 'class': 'srunc-card-badges' }, badges) : null
+	].filter(Boolean));
+
+	var body;
+	if (state === 'authenticated') {
+		var sessionRows = [
+			kvRow(_('User'), status.username || '?', { copyable: true }),
+			kvRow(_('IPv4'), status.ip || d.online_ip || '?', { copyable: true }),
+			d.devices ? kvRow(_('IPv6'), pickCurrentIp6(d.devices, status.ip || d.online_ip), { copyable: true }) : null,
+			d.user_mac ? kvRow(_('MAC'), d.user_mac, { copyable: true }) : null,
+			(typeof d.online_device_total === 'number') ? kvRow(_('Devices'), String(d.online_device_total)) : null,
+			kvRow(_('Portal'), status.resolved_host || resolvedHostFromConfig(profiles) || '?', { copyable: !!status.resolved_host }),
+			d.keepalive_time ? kvRow(_('Last kp'), fmtAgo(d.keepalive_time)) : null
 		].filter(Boolean);
+
+		var quotaRows = [];
+		if (status.details) {
+			quotaRows = [
+				d.plan ? kvRow(_('Plan'), d.plan) : null,
+				d.billing ? kvRow(_('Billing'), d.billing) : null,
+				(typeof d.sum_bytes === 'number') ? kvRow(_('Used'), fmtBytes(d.sum_bytes)) : null,
+				(typeof d.bytes_in === 'number') ? kvRow(_('↓ in'), fmtBytes(d.bytes_in)) : null,
+				(typeof d.bytes_out === 'number') ? kvRow(_('↑ out'), fmtBytes(d.bytes_out)) : null,
+				(typeof d.sum_seconds === 'number') ? kvRow(_('Time used'), fmtSeconds(d.sum_seconds)) : null,
+				(typeof d.user_balance === 'number' && d.user_balance > 0) ? kvRow(_('Balance'), String(d.user_balance)) : null,
+				d.add_time ? kvRow(_('Active since'), fmtDate(d.add_time)) : null
+			].filter(Boolean);
+		}
+
+		var cols = [
+			E('div', { 'class': 'srunc-grid-col' }, [
+				E('h4', {}, _('Session')),
+				E('table', { 'class': 'srunc-kv' }, sessionRows)
+			])
+		];
+		if (quotaRows.length) {
+			cols.push(E('div', { 'class': 'srunc-grid-col' }, [
+				E('h4', {}, _('Plan & quota')),
+				E('table', { 'class': 'srunc-kv' }, quotaRows)
+			]));
+		}
+		body = E('div', { 'class': 'srunc-grid' }, cols);
+	} else {
+		var rows = [
+			kvRow(_('Portal'), status.resolved_host || resolvedHostFromConfig(profiles) || '?', { copyable: !!status.resolved_host }),
+			kvRow(_('ac_id'), status.resolved_ac_id || E('span', { 'class': 'srunc-auto' }, _('auto-discover')))
+		].filter(Boolean);
+		body = rows.length ? E('table', { 'class': 'srunc-kv' }, rows) : null;
 	}
 
-	var cols = [
-		E('div', { 'class': 'srunc-grid-col' }, [
-			E('h4', {}, _('Session')),
-			E('table', { 'class': 'srunc-kv' }, sessionRows)
-		])
-	];
-	if (quotaRows.length) {
-		cols.push(E('div', { 'class': 'srunc-grid-col' }, [
-			E('h4', {}, _('Plan & quota')),
-			E('table', { 'class': 'srunc-kv' }, quotaRows)
-		]));
-	}
-	return E('div', { 'class': 'srunc-grid' }, cols);
+	var errorEl = (state === 'connecting' && lastError)
+		? E('div', { 'class': 'srunc-card-error' }, lastError)
+		: null;
+
+	logoutBtn.disabled = !online;
+	logoutBtn.style.display = online ? '' : 'none';
+	var actionsEl = E('div', { 'class': 'srunc-card-actions' }, [ logoutBtn, restartBtn ]);
+
+	return E('div', { 'class': cardClass }, [head, body, errorEl, actionsEl].filter(Boolean));
 }
 
 function pickCurrentIp6(devices, currentIp) {
@@ -330,40 +364,6 @@ function setupBanner() {
 			' ',
 			_('Enter your portal credentials below and click Save & Apply.')
 		])
-	]);
-}
-
-// --- log preview ----------------------------------------------------------
-
-function renderLogPreview(text, serviceInfo) {
-	text = String(text || '');
-	var lines = text.split('\n');
-	if (lines.length > 12) lines = lines.slice(-12);
-	var tail = lines.join('\n');
-	var running = !!(serviceInfo && serviceInfo.running);
-	var badge = E('span', { 'class': 'srunc-pill ' + (running ? 'srunc-on' : 'srunc-off') }, [
-		E('span', { 'class': 'srunc-dot' }),
-		running ? _('Service running') : _('Service stopped')
-	]);
-	var copyBtnEl = E('a', {
-		'href': '#',
-		'click': function (ev) {
-			ev.preventDefault();
-			copyText(text).then(function () {
-				ui.addNotification(null, E('p', _('Log copied to clipboard.')), 'success');
-			}, function () {
-				ui.addNotification(null, E('p', _('Could not copy to clipboard.')), 'warning');
-			});
-		}
-	}, _('Copy'));
-	var openLink = E('a', { 'href': L.url('admin', 'services', 'srunc', 'log') }, _('Open Log →'));
-	return E('div', { 'class': 'srunc-log-card' }, [
-		E('div', { 'class': 'srunc-log-card-head' }, [
-			badge,
-			E('span', { 'class': 'srunc-meta' }, _('Recent log (last %d lines)').format(lines.length)),
-			E('span', { 'class': 'srunc-log-card-actions' }, [ copyBtnEl, openLink ])
-		]),
-		E('pre', {}, tail || _('No log output yet.'))
 	]);
 }
 
@@ -592,7 +592,6 @@ return view.extend({
 			callStatus('default').catch(function () { return {}; }),
 			callServiceStatus().catch(function () { return { running: false }; }),
 			callVersion().catch(function () { return {}; }),
-			callLog(50).catch(function () { return ''; }),
 			uci.load('srunc').catch(function () {}),
 			callProfiles().catch(function () { return []; })
 		]);
@@ -602,8 +601,7 @@ return view.extend({
 		var initial = loaded[0] || {};
 		var initialService = loaded[1] || { running: false };
 		var versionInfo = loaded[2] || {};
-		var initialLog = loaded[3] || '';
-		var profiles = loaded[5] || [];
+		var profiles = loaded[4] || [];
 		var self = this;
 
 		var m = new form.Map('srunc');
@@ -613,18 +611,8 @@ return view.extend({
 		return m.render().then(function (formNode) {
 			wrapAdvanced(formNode);
 
-			var profile = profileLabel(profiles);
 			var keepalive = (uci.get('srunc', 'default', 'keepalive') !== '0');
-			var heroBox = E('div', {}, renderStatusHero(initial, profile, keepalive));
-			var gridBox = E('div', {}, renderKvGrid(initial, profiles));
-			var devicesBox = E('div', {},
-				renderDevicesTable(initial.details && initial.details.devices,
-					(initial.details && initial.details.online_ip) || initial.ip) || []);
-			var footerBox = E('div', {}, renderFooter(initial, versionInfo, null));
-			var logBox = E('div', {}, renderLogPreview(initialLog, initialService));
 
-			// Action buttons (Logout + Restart). Login removed — Save & Apply
-			// on a changed config restarts the daemon, which re-auths.
 			var logoutOpts = {
 				label: _('logout'),
 				fn: callLogout,
@@ -655,27 +643,33 @@ return view.extend({
 				'class': 'btn cbi-button-neutral',
 				'click': ui.createHandlerFn(self, runAction, restartOpts)
 			}, [ _('Restart service') ]);
-			function refreshActions(online) { logoutBtn.disabled = !online; }
-			refreshActions(initial.online);
 
-			// Refresh status / service / log every 5 s.
+			var cardBox = E('div', {}, renderStatusCard(initial, initialService, profiles, keepalive, null, logoutBtn, restartBtn));
+			var devicesBox = E('div', {},
+				renderDevicesTable(initial.details && initial.details.devices,
+					(initial.details && initial.details.online_ip) || initial.ip) || []);
+			var footerBox = E('div', {}, renderFooter(initial, versionInfo, null));
+
 			poll.add(function () {
 				return Promise.all([
-					callStatus('default').then(function (s) {
-						dom.content(heroBox, renderStatusHero(s, profile, keepalive));
-						dom.content(gridBox, renderKvGrid(s, profiles));
+					callStatus('default').catch(function () { return {}; }),
+					callServiceStatus().catch(function () { return { running: false }; })
+				]).then(function (results) {
+					var s = results[0];
+					var svc = results[1];
+					var online = !!(s && s.online);
+					var running = !!(svc && svc.running);
+					var errorP = (!online && running)
+						? callLog(10).then(extractLastError).catch(function () { return null; })
+						: Promise.resolve(null);
+					return errorP.then(function (lastError) {
+						dom.content(cardBox, renderStatusCard(s, svc, profiles, keepalive, lastError, logoutBtn, restartBtn));
 						var t = renderDevicesTable(s.details && s.details.devices,
 							(s.details && s.details.online_ip) || s.ip);
 						dom.content(devicesBox, t || []);
 						dom.content(footerBox, renderFooter(s, versionInfo, null));
-						refreshActions(s && s.online);
-					}, function () {}),
-					callServiceStatus().then(function (svc) {
-						callLog(50).then(function (lt) {
-							dom.content(logBox, renderLogPreview(lt, svc));
-						}, function () {});
-					}, function () {})
-				]);
+					});
+				});
 			}, 5);
 
 			var banner = setupBanner();
@@ -684,19 +678,14 @@ return view.extend({
 				renderHeader(versionInfo)
 			];
 			if (banner) page.push(banner);
-			page.push(heroBox, gridBox, devicesBox, formNode);
-			page.push(E('div', { 'class': 'srunc-actions' }, [ logoutBtn, restartBtn ]));
-			page.push(logBox, footerBox);
+			page.push(cardBox, devicesBox, formNode, footerBox);
 			return E([], page);
 		});
 	},
 
-	// procd auto-reloads on UCI change (see init.d service_triggers), so a
-	// plain Map.save() is enough — the daemon picks up the new config on
-	// the next reload tick.
-	handleSaveApply: function () {
+	handleSaveApply: function (ev, mode) {
 		return this.map.save().then(function () {
-			ui.addNotification(null, E('p', _('Configuration applied.')), 'success');
+			return ui.changes.apply(mode == '0');
 		});
 	}
 });

@@ -175,6 +175,21 @@ msgstr "连续失败次数后退出"
 
 # ---- overview: status card ----
 
+msgid "Authenticated"
+msgstr "已认证"
+
+msgid "Connecting…"
+msgstr "连接中…"
+
+msgid "Disconnected"
+msgstr "未连接"
+
+msgid "Waiting for authentication…"
+msgstr "等待认证…"
+
+msgid "Not configured"
+msgstr "未配置"
+
 msgid "Online"
 msgstr "在线"
 
