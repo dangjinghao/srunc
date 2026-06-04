@@ -123,7 +123,15 @@ enum Cmd {
     /// De-authenticate.
     Logout,
     /// Print whether we are currently online.
-    Status,
+    Status {
+        /// Re-render the status block every `--interval` seconds until
+        /// Ctrl-C. Useful as a companion to `login --keepalive`.
+        #[arg(short, long)]
+        watch: bool,
+        /// Seconds between refreshes when `--watch` is set.
+        #[arg(long, default_value_t = 5, value_name = "SECS")]
+        interval: u64,
+    },
     /// Manage deployment profiles (built-in host + ac_id for known srun installs).
     Profiles {
         #[command(subcommand)]
@@ -485,17 +493,64 @@ fn cmd_logout(cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-fn cmd_status(cli: &Cli) -> Result<()> {
+fn cmd_status(cli: &Cli, watch: bool, interval: u64) -> Result<()> {
     let s = resolve(cli)?;
     let r = resolve_target(&s)?;
     let client = Client::new(r.endpoints, s.timeout);
-    let st = client.status(&r.ac_id).context("status query failed")?;
-    if cli.json {
-        println!("{}", serde_json::to_string(&st)?);
-    } else {
-        print_status_human(&st);
+
+    if !watch {
+        let st = client.status(&r.ac_id).context("status query failed")?;
+        emit_status(&st, cli.json);
+        return Ok(());
+    }
+
+    // --watch: refresh until Ctrl-C. JSON mode emits NDJSON (one object per
+    // line) instead of clear-and-redraw — friendlier to pipes / tee. Human
+    // mode clears the screen and re-renders in place.
+    let interval = interval.max(1);
+    let stop = install_signal_handler()?;
+    let mut backoff = interval;
+    while !stop.load(Ordering::SeqCst) {
+        match client.status(&r.ac_id) {
+            Ok(st) => {
+                if !cli.json {
+                    // ANSI clear + cursor home, routed through anstream so
+                    // a non-TTY stdout (pipe, file) strips the escape and
+                    // gets plain successive frames instead of literal `[2J`.
+                    anstream::print!("\x1b[2J\x1b[H");
+                }
+                emit_status(&st, cli.json);
+                backoff = interval;
+            }
+            Err(e) => {
+                // Log but don't bail — transient network hiccups shouldn't
+                // kill the watch loop. Back off so a portal outage doesn't
+                // spam the screen; reset on recovery.
+                warn!("status: {}: {}", e, srunc::Error::user_message(&e));
+                backoff = (backoff.saturating_mul(2)).min(60);
+            }
+        }
+        sleep_interruptible(backoff, &stop);
     }
     Ok(())
+}
+
+fn emit_status(st: &srunc::Status, json: bool) {
+    if json {
+        // Already on its own line; under --watch this gives NDJSON.
+        println!("{}", serde_json::to_string(st).unwrap_or_default());
+    } else {
+        print_status_human(st);
+    }
+}
+
+/// Sleep for `secs` 1-second slices, returning early when `stop` flips.
+fn sleep_interruptible(secs: u64, stop: &AtomicBool) {
+    let mut left = secs;
+    while left > 0 && !stop.load(Ordering::SeqCst) {
+        std::thread::sleep(Duration::from_secs(1));
+        left -= 1;
+    }
 }
 
 fn print_status_human(st: &srunc::Status) {
@@ -640,7 +695,7 @@ fn main() -> ExitCode {
             retry,
         } => cmd_login(&cli, *keepalive, *campus_only, *interval, *retry),
         Cmd::Logout => cmd_logout(&cli),
-        Cmd::Status => cmd_status(&cli),
+        Cmd::Status { watch, interval } => cmd_status(&cli, *watch, *interval),
         Cmd::Profiles { action } => match action {
             ProfilesCmd::List { json } => cmd_profiles_list(*json),
         },
