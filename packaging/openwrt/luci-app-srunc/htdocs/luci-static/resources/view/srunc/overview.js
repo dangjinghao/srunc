@@ -298,18 +298,47 @@ function setupBanner() {
 	]);
 }
 
-function runAction(label, fn, ev) {
+// Poll status until `online === expected` or timeout; resolves null on timeout.
+function waitForOnline(expected, timeoutSec) {
+	var deadline = Date.now() + timeoutSec * 1000;
+	function step() {
+		return callStatus('default').then(function (s) {
+			if (!!(s && s.online) === !!expected) return s;
+			if (Date.now() >= deadline) return null;
+			return new Promise(function (r) { setTimeout(r, 1000); }).then(step);
+		}, function () {
+			if (Date.now() >= deadline) return null;
+			return new Promise(function (r) { setTimeout(r, 1000); }).then(step);
+		});
+	}
+	return step();
+}
+
+// rpcd login/logout/restart only confirm dispatch, not the eventual auth
+// result — so we poll status to find out what actually happened.
+function runAction(opts, ev) {
 	var btn = ev.currentTarget;
 	var orig = btn.innerHTML;
 	btn.disabled = true;
 	btn.innerHTML = '<em>' + _('Working…') + '</em>';
-	return fn().then(function (r) {
-		if (r && r.ok) {
-			ui.addNotification(null, E('p', _('%s: ok').format(label)), 'success');
-		} else {
-			var err = (r && r.error) || _('failed');
-			ui.addNotification(null, E('p', _('%s: %s').format(label, err)), 'danger');
+	var timeoutSec = opts.timeoutSec || 12;
+
+	return opts.fn().then(function (r) {
+		if (!r || r.ok === false) {
+			var err = (r && r.error) || _('dispatch failed');
+			ui.addNotification(null,
+				E('p', _('%s: %s').format(opts.label, err)), 'danger');
+			return;
 		}
+		return waitForOnline(opts.expectedOnline, timeoutSec).then(function (st) {
+			if (st === null) {
+				ui.addNotification(null,
+					E('p', opts.verifyFailure(timeoutSec)), 'warning');
+			} else {
+				ui.addNotification(null,
+					E('p', opts.verifySuccess(st)), 'success');
+			}
+		});
 	}, function (e) {
 		ui.addNotification(null, E('p', e.message || String(e)), 'danger');
 	}).finally(function () {
@@ -335,10 +364,66 @@ return view.extend({
 		var keepalive = (uci.get('srunc', 'default', 'keepalive') !== '0');
 		var statusBox = E('div', {}, renderStatus(initial, profile, keepalive, portal));
 
-		// Refresh status every 5 s while the user is on the page.
+		var loginOpts = {
+			label: _('login'),
+			fn: callLogin,
+			expectedOnline: true,
+			verifySuccess: function (st) {
+				return st.username
+					? _('Logged in as %s.').format(st.username)
+					: _('Login succeeded.');
+			},
+			verifyFailure: function (sec) {
+				return _('Login dispatched but the daemon is still offline after %d s. Check the Log tab for the portal\'s error code.').format(sec);
+			}
+		};
+		var logoutOpts = {
+			label: _('logout'),
+			fn: callLogout,
+			expectedOnline: false,
+			verifySuccess: function () { return _('Logged out.'); },
+			verifyFailure: function (sec) {
+				return _('Logout dispatched but the session is still online after %d s.').format(sec);
+			}
+		};
+		var restartOpts = {
+			label: _('restart'),
+			fn: callRestart,
+			expectedOnline: true,
+			verifySuccess: function (st) {
+				return st.username
+					? _('Service restarted; logged in as %s.').format(st.username)
+					: _('Service restarted.');
+			},
+			verifyFailure: function (sec) {
+				return _('Service restarted but the daemon is still offline after %d s.').format(sec);
+			}
+		};
+
+		var loginBtn = E('button', {
+			'class': 'btn cbi-button-action',
+			'click': ui.createHandlerFn(this, runAction, loginOpts)
+		}, [ _('Login now') ]);
+		var logoutBtn = E('button', {
+			'class': 'btn cbi-button-negative',
+			'click': ui.createHandlerFn(this, runAction, logoutOpts)
+		}, [ _('Logout') ]);
+		var restartBtn = E('button', {
+			'class': 'btn cbi-button-neutral',
+			'click': ui.createHandlerFn(this, runAction, restartOpts)
+		}, [ _('Restart service') ]);
+
+		function refreshActions(online) {
+			// Restart stays enabled — operator escape hatch.
+			loginBtn.disabled = !!online;
+			logoutBtn.disabled = !online;
+		}
+		refreshActions(initial.online);
+
 		poll.add(function () {
 			return callStatus('default').then(function (s) {
 				dom.content(statusBox, renderStatus(s, profile, keepalive, portal));
+				refreshActions(s && s.online);
 			}, function () { /* ignore transient errors */ });
 		}, 5);
 
@@ -355,20 +440,7 @@ return view.extend({
 		]));
 		page.push(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('Actions')),
-			E('div', { 'class': 'srunc-actions' }, [
-				E('button', {
-					'class': 'btn cbi-button-action',
-					'click': ui.createHandlerFn(this, runAction, _('login'), callLogin)
-				}, [ _('Login now') ]),
-				E('button', {
-					'class': 'btn cbi-button-negative',
-					'click': ui.createHandlerFn(this, runAction, _('logout'), callLogout)
-				}, [ _('Logout') ]),
-				E('button', {
-					'class': 'btn cbi-button-neutral',
-					'click': ui.createHandlerFn(this, runAction, _('restart'), callRestart)
-				}, [ _('Restart service') ])
-			])
+			E('div', { 'class': 'srunc-actions' }, [ loginBtn, logoutBtn, restartBtn ])
 		]));
 
 		return E([], page);

@@ -164,7 +164,8 @@ pub const PROFILES: &[Profile] = &[
         id: "tsinghua",
         label: "Tsinghua University · 清华大学",
         host: Some("auth4.tsinghua.edu.cn"),
-        ac_id: Some("1"),
+        // ac_id is per-segment on THU — pinning breaks every other segment with E3003.
+        ac_id: None,
     },
     Profile {
         id: "uestc",
@@ -238,10 +239,11 @@ mod tests {
     }
 
     #[test]
-    fn tsinghua_is_fully_verified() {
+    fn tsinghua_pins_host_only() {
+        // ac_id MUST stay None — it varies per segment; see profile entry.
         let p = by_id("tsinghua").expect("tsinghua profile is shipped");
         assert_eq!(p.host, Some("auth4.tsinghua.edu.cn"));
-        assert_eq!(p.ac_id, Some("1"));
+        assert_eq!(p.ac_id, None);
     }
 
     #[test]

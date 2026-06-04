@@ -52,8 +52,26 @@ msgstr "启用"
 msgid "Deployment"
 msgstr "部署"
 
-msgid "Pick your srun deployment to use built-in portal defaults (host + ac_id). Choose <em>Custom</em> to enter them manually under <em>Advanced</em> or to rely on captive-portal auto-discovery."
-msgstr "选择你所在的 srun 部署，套用内置的认证主机和 ac_id。选择 <em>Custom</em> 则可在 <em>高级</em> 中手填，或交由认证页面自动识别。"
+msgid "Pick your srun deployment to use its built-in defaults. Choose <em>Custom</em> to fall through to captive-portal auto-discovery."
+msgstr "选择你所在的 srun 部署，套用其内置默认值。选择 <em>Custom</em> 则交由认证页面自动识别。"
+
+msgid "Resolved"
+msgstr "实际生效"
+
+msgid "Portal host: auto-discovered from the captive redirect"
+msgstr "认证主机：从校园网弹出页自动识别"
+
+msgid "ac_id: auto-discovered from the captive redirect"
+msgstr "ac_id：从校园网弹出页自动识别"
+
+msgid "Portal host: <strong>%s</strong>"
+msgstr "认证主机：<strong>%s</strong>"
+
+msgid "Portal host: auto-discovered (this deployment is label-only)"
+msgstr "认证主机：自动识别（该部署仅有名称，未内置主机）"
+
+msgid "ac_id: <strong>auto-discovered</strong> per network segment"
+msgstr "ac_id：<strong>按网段自动识别</strong>"
 
 msgid "— Custom / auto —"
 msgstr "— 自定义 / 自动 —"
@@ -72,14 +90,20 @@ msgstr "显示/隐藏密码"
 msgid "Portal host"
 msgstr "认证主机"
 
-msgid "Override the auth host. Picked profile wins over auto-discovery; this field wins over both."
-msgstr "覆盖认证主机。预置部署优先于自动识别；该字段优先级高于二者。"
+msgid "Leave blank to use the host the selected <em>Deployment</em> profile carries, or to fall through to captive-portal auto-discovery if no profile is picked. Set a value here only to override both."
+msgstr "留空时使用所选 <em>部署</em> 自带的主机；未选部署则交由校园网弹出页自动识别。仅当你想同时覆盖二者时才填值。"
+
+msgid "blank = from profile / auto-discover"
+msgstr "留空 = 取自部署 / 自动识别"
 
 msgid "ac_id"
 msgstr "ac_id"
 
-msgid "Override the access-controller id. Picked profile wins over auto-discovery; this field wins over both."
-msgstr "覆盖接入控制器 ID。预置部署优先于自动识别；该字段优先级高于二者。"
+msgid "Leave blank to auto-discover the segment-correct ac_id from the captive redirect at every login. Set a value here only if you know your network segment's ac_id and want to skip the probe. <strong>Deployment profiles deliberately do NOT pin ac_id</strong> — it varies per dorm / building / VLAN."
+msgstr "留空时，每次登录都从校园网弹出页自动识别该网段对应的 ac_id。仅当你已知本网段 ac_id、想跳过探测时才填值。<strong>预置部署故意不固化 ac_id</strong>——它因宿舍 / 楼栋 / VLAN 而异。"
+
+msgid "blank = auto-discover"
+msgstr "留空 = 自动识别"
 
 msgid "Discover from gateway"
 msgstr "从网关探测"
@@ -236,14 +260,38 @@ msgstr "退出"
 msgid "restart"
 msgstr "重启"
 
-msgid "%s: ok"
-msgstr "%s：成功"
-
 msgid "%s: %s"
 msgstr "%s：%s"
 
 msgid "failed"
 msgstr "失败"
+
+msgid "dispatch failed"
+msgstr "下发失败"
+
+msgid "Logged in as %s."
+msgstr "已登录：%s"
+
+msgid "Login succeeded."
+msgstr "登录成功"
+
+msgid "Login dispatched but the daemon is still offline after %d s. Check the Log tab for the portal's error code."
+msgstr "已下发登录命令，但 %d 秒后守护进程仍未上线。请到日志标签查看 portal 返回的错误码。"
+
+msgid "Logged out."
+msgstr "已退出"
+
+msgid "Logout dispatched but the session is still online after %d s."
+msgstr "已下发退出命令，但 %d 秒后会话仍在线。"
+
+msgid "Service restarted."
+msgstr "服务已重启"
+
+msgid "Service restarted; logged in as %s."
+msgstr "服务已重启；已登录：%s"
+
+msgid "Service restarted but the daemon is still offline after %d s."
+msgstr "服务已重启，但 %d 秒后守护进程仍未上线。"
 
 # ---- overview: copy buttons ----
 

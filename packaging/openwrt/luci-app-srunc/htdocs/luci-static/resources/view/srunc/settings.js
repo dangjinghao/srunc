@@ -64,13 +64,38 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('basic', form.ListValue, 'profile', _('Deployment'),
-			_('Pick your srun deployment to use built-in portal defaults (host + ac_id). Choose <em>Custom</em> to enter them manually under <em>Advanced</em> or to rely on captive-portal auto-discovery.'));
+			_('Pick your srun deployment to use its built-in defaults. Choose <em>Custom</em> to fall through to captive-portal auto-discovery.'));
 		o.value('', _('— Custom / auto —'));
 		for (var i = 0; i < profiles.length; i++) {
 			o.value(profiles[i].id, profiles[i].label);
 		}
 		o.default = '';
 		o.rmempty = true;
+
+		// Live preview of what the picked deployment will contribute. One
+		// widget per option, gated by .depends — LuCI swaps them on change.
+		function previewWidget(depValue, lines) {
+			var w = s.taboption('basic', form.DummyValue, '_preview_' + (depValue || 'none'),
+				_('Resolved'));
+			w.depends('profile', depValue);
+			w.rawhtml = true;
+			w.cfgvalue = function () { return lines.join('<br>'); };
+			return w;
+		}
+		previewWidget('', [
+			'<em>' + _('Portal host: auto-discovered from the captive redirect') + '</em>',
+			'<em>' + _('ac_id: auto-discovered from the captive redirect') + '</em>'
+		]);
+		for (var pi = 0; pi < profiles.length; pi++) {
+			var p = profiles[pi];
+			var lines = [
+				p.host
+					? _('Portal host: <strong>%s</strong>').format(p.host)
+					: '<em>' + _('Portal host: auto-discovered (this deployment is label-only)') + '</em>',
+				_('ac_id: <strong>auto-discovered</strong> per network segment')
+			];
+			previewWidget(p.id, lines);
+		}
 
 		o = s.taboption('basic', form.Value, 'username', _('Username'));
 		o.rmempty = false;
@@ -124,14 +149,14 @@ return view.extend({
 		// When a profile DOES pin a value, the explicit field still wins
 		// (resolution chain: explicit → profile → discovery).
 		o = s.taboption('advanced', form.Value, 'host', _('Portal host'),
-			_('Override the auth host. Picked profile wins over auto-discovery; this field wins over both.'));
+			_('Leave blank to use the host the selected <em>Deployment</em> profile carries, or to fall through to captive-portal auto-discovery if no profile is picked. Set a value here only to override both.'));
 		o.optional = true;
-		o.placeholder = 'auto';
+		o.placeholder = _('blank = from profile / auto-discover');
 
 		o = s.taboption('advanced', form.Value, 'ac_id', _('ac_id'),
-			_('Override the access-controller id. Picked profile wins over auto-discovery; this field wins over both.'));
+			_('Leave blank to auto-discover the segment-correct ac_id from the captive redirect at every login. Set a value here only if you know your network segment\'s ac_id and want to skip the probe. <strong>Deployment profiles deliberately do NOT pin ac_id</strong> — it varies per dorm / building / VLAN.'));
 		o.optional = true;
-		o.placeholder = 'auto';
+		o.placeholder = _('blank = auto-discover');
 		o.datatype = 'uinteger';
 
 		// "Discover from gateway" — Button widget on the Advanced tab,

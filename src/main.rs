@@ -318,7 +318,7 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
             )
         })?;
 
-    debug!("resolved: host={host} ac_id={ac_id}");
+    info!("resolved: host={host} ac_id={ac_id}");
     Ok(Resolved {
         host,
         endpoints,

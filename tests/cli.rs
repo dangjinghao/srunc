@@ -169,7 +169,7 @@ fn profiles_list_json_returns_at_least_tsinghua() {
         .find(|p| p["id"] == "tsinghua")
         .expect("tsinghua profile should ship by default");
     assert_eq!(tsinghua["host"], "auth4.tsinghua.edu.cn");
-    assert_eq!(tsinghua["ac_id"], "1");
+    assert!(tsinghua["ac_id"].is_null());
 }
 
 #[test]
