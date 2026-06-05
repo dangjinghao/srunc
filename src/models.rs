@@ -224,8 +224,7 @@ fn parse_devices(raw: Option<&str>) -> Option<Vec<DeviceEntry>> {
     if raw.is_empty() {
         return None;
     }
-    let map: std::collections::BTreeMap<String, DeviceEntry> =
-        serde_json::from_str(raw).ok()?;
+    let map: std::collections::BTreeMap<String, DeviceEntry> = serde_json::from_str(raw).ok()?;
     Some(map.into_values().collect())
 }
 

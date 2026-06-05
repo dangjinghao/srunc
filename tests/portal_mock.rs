@@ -184,7 +184,10 @@ fn status_rich_details_suppressed_for_unverified_host() {
     let client = Client::new(endpoints, Duration::from_secs(2));
     let st = client.status("1").unwrap();
     assert!(st.online);
-    assert!(st.details.is_none(), "non-whitelisted host must not surface details");
+    assert!(
+        st.details.is_none(),
+        "non-whitelisted host must not surface details"
+    );
 }
 
 #[test]

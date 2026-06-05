@@ -393,10 +393,7 @@ fn cmd_profiles_list(json: bool) -> Result<()> {
         } else {
             (yellow, "~")
         };
-        println!(
-            "{glyph_style}{glyph}{glyph_style:#} {bold}{}{bold:#}",
-            p.id
-        );
+        println!("{glyph_style}{glyph}{glyph_style:#} {bold}{}{bold:#}", p.id);
         println!("  {dim}label{dim:#}  {}", p.label);
         println!(
             "  {dim}host{dim:#}   {}",

@@ -219,9 +219,7 @@ const RICH_HOSTS: &[&str] = &["auth4.tsinghua.edu.cn"];
 /// `true` if `rad_user_info` from this host is known to use the field names
 /// we map into `StatusDetails`. Match is case-insensitive on the host.
 pub fn host_supports_rich_status(host: &str) -> bool {
-    RICH_HOSTS
-        .iter()
-        .any(|h| host.eq_ignore_ascii_case(h))
+    RICH_HOSTS.iter().any(|h| host.eq_ignore_ascii_case(h))
 }
 
 #[cfg(test)]
