@@ -23,3 +23,9 @@ srunc logout
 Host and `ac_id` are auto-discovered from the captive redirect — most networks
 need nothing more than username + password. To skip the prompt, drop a config
 at `~/.config/srunc/config.toml` (see [`docs/config.example.toml`](docs/config.example.toml)).
+
+## Figures
+
+### OpenWRT
+
+![openwrt](figures/openwrt.png)
