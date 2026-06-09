@@ -546,31 +546,51 @@ fn cmd_login(
     let mut s = resolve(cli)?;
     prompt_credentials(&mut s)?;
 
-    let r = resolve_target(&s, true)?;
-    // Record the resolved target before the login round-trip: once we're
-    // authenticated the captive redirect is gone, so this is the only moment
-    // `status` can learn the segment-correct host + ac_id. Best-effort.
+    // Discovery-first so a normal (offline) login always picks the
+    // segment-fresh ac_id. Only when that fails — which is precisely the
+    // "re-login while still online" case (procd respawning us after a keepalive
+    // blip, with the portal session still valid) — fall back to the target
+    // cached at the previous successful login. The fallback never fires on a
+    // genuine offline login, so a roaming client still re-discovers fresh.
+    let r = match resolve_target(&s, true) {
+        Ok(r) => r,
+        Err(e) => {
+            apply_resolved_cache(cli, &mut s);
+            resolve_target(&s, true).map_err(|_| e)?
+        }
+    };
+    // Record the resolved target so `status` / `logout` can reuse it once we're
+    // online (the captive redirect is gone after auth). Best-effort.
     if let Some(cfg) = cli.config.as_deref() {
         write_resolved_cache(cfg, &r.host, &r.ac_id);
     }
     let client = Client::new(r.endpoints, s.timeout);
-    let creds = Credentials {
-        username: &s.username,
-        password: &s.password,
-    };
 
-    client
-        .login(&creds, &r.ac_id, &s.ip)
-        .context("login failed")?;
-    info!("login: ok");
+    // Idempotent: if the portal already considers us online (the session
+    // outlived the keepalive blip that made procd respawn us), don't re-submit
+    // credentials — some deployments reject a duplicate login, which would turn
+    // a recoverable blip into a respawn storm. Resume keepalive directly. A
+    // failed status probe falls through to a normal login attempt.
+    if client.status(&r.ac_id).is_ok_and(|st| st.online) {
+        info!("already online; skipping login");
+    } else {
+        let creds = Credentials {
+            username: &s.username,
+            password: &s.password,
+        };
+        client
+            .login(&creds, &r.ac_id, &s.ip)
+            .context("login failed")?;
+        info!("login: ok");
 
-    // Best-effort confirmation summary: re-query status and show "logged in
-    // as <user> (IP <ip>)". Skipped under --json (which would expect machine
-    // output from login) and under --daemonize (an extra HTTP round-trip on
-    // every keepalive cycle is wasteful). Errors here don't fail login.
-    if !cli.json && !s.daemonize {
-        if let Ok(st) = client.status(&r.ac_id) {
-            print_login_confirmation(&st);
+        // Best-effort confirmation summary: re-query status and show "logged in
+        // as <user> (IP <ip>)". Skipped under --json (which would expect machine
+        // output from login) and under --daemonize (an extra HTTP round-trip on
+        // every keepalive cycle is wasteful). Errors here don't fail login.
+        if !cli.json && !s.daemonize {
+            if let Ok(st) = client.status(&r.ac_id) {
+                print_login_confirmation(&st);
+            }
         }
     }
 
