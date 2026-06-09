@@ -256,12 +256,35 @@ struct Resolved {
     host: String,
     endpoints: Endpoints,
     ac_id: String,
+    /// `true` when `ac_id` is the [`STATUS_FALLBACK_AC_ID`] placeholder rather
+    /// than a genuinely resolved value (only possible on the `status` path,
+    /// where ac_id isn't required). Callers that surface the ac_id hide it.
+    ac_id_synthetic: bool,
 }
 
+impl Resolved {
+    /// The ac_id to surface to UIs: `None` when it's only the placeholder, so
+    /// the dashboard doesn't display a fake segment id.
+    fn display_ac_id(&self) -> Option<String> {
+        (!self.ac_id_synthetic).then(|| self.ac_id.clone())
+    }
+}
+
+/// `status`'s online check is keyed by the source IP the portal sees, so its
+/// `ac_id` is just a required query parameter, never a discriminator. When we
+/// can't resolve a real one (an ac_id-less profile with no login cache yet),
+/// this benign placeholder lets the check proceed instead of failing outright.
+const STATUS_FALLBACK_AC_ID: &str = "1";
+
 /// Fallback chain: explicit `--host`/`--ac-id` → `--profile` preset →
-/// captive-portal discovery (probe default gateway). Errors out if all three
-/// fail to yield a value, rather than silently picking a stale default.
-fn resolve_target(s: &Settings) -> Result<Resolved> {
+/// captive-portal discovery (probe default gateway). `require_ac_id` is set by
+/// the auth paths (login/logout) that genuinely need a segment-correct ac_id;
+/// `status` clears it, because once we're authenticated the captive redirect
+/// that discovery relies on is gone — re-probing for an ac_id we don't even
+/// use would make `status` fail at the exact moment it should report "online".
+/// Errors out if a *required* value can't be found, rather than silently
+/// picking a stale default.
+fn resolve_target(s: &Settings, require_ac_id: bool) -> Result<Resolved> {
     let profile = s.profile.as_deref().and_then(|id| {
         let p = srunc::profiles::by_id(id);
         if p.is_none() {
@@ -274,8 +297,11 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
     let profile_host = profile.and_then(|p| p.host).map(str::to_string);
     let profile_ac_id = profile.and_then(|p| p.ac_id).map(str::to_string);
 
-    let need_discovery = (s.host.is_none() && profile_host.is_none())
-        || (s.ac_id.is_none() && profile_ac_id.is_none());
+    let host_known = s.host.is_some() || profile_host.is_some();
+    let ac_id_known = s.ac_id.is_some() || profile_ac_id.is_some();
+    // Only probe the gateway for something we'll actually use: `status` needs
+    // just the host, so it never triggers discovery for a missing ac_id.
+    let need_discovery = !host_known || (require_ac_id && !ac_id_known);
     let discovered = if need_discovery {
         srunc::gateway::default_gateway_v4()
             .and_then(|gw| {
@@ -306,24 +332,74 @@ fn resolve_target(s: &Settings) -> Result<Resolved> {
         })?;
     let endpoints = Endpoints::from_host(&host, s.insecure);
 
-    let ac_id = s
-        .ac_id
-        .clone()
-        .or(profile_ac_id)
-        .or(discovered.ac_id)
-        .ok_or_else(|| {
-            anyhow!(
-                "could not determine ac_id — pass --ac-id, --profile <id>, \
-                 or ensure the captive redirect carries an index_<N>.html / ac_id=<N> hint"
-            )
-        })?;
+    let resolved_ac_id = s.ac_id.clone().or(profile_ac_id).or(discovered.ac_id);
+    let (ac_id, ac_id_synthetic) = match resolved_ac_id {
+        Some(v) => (v, false),
+        // status path: proceed with a placeholder (the online check ignores it).
+        None if !require_ac_id => (STATUS_FALLBACK_AC_ID.to_string(), true),
+        None => bail!(
+            "could not determine ac_id — pass --ac-id, --profile <id>, \
+             or ensure the captive redirect carries an index_<N>.html / ac_id=<N> hint"
+        ),
+    };
 
     info!("resolved: host={host} ac_id={ac_id}");
     Ok(Resolved {
         host,
         endpoints,
         ac_id,
+        ac_id_synthetic,
     })
+}
+
+/// Path where `cmd_login` caches the resolved target for `cmd_status` to reuse,
+/// a sibling of the config file: `…/<name>.toml` → `…/<name>.resolved`.
+fn resolved_cache_path(cfg: &Path) -> PathBuf {
+    cfg.with_extension("resolved")
+}
+
+/// Best-effort: record the host + ac_id resolved at login next to the config,
+/// so a later `status` — which can no longer re-discover them once we're
+/// online — can reuse them and query the portal directly. Failures are
+/// swallowed: the cache is an optimization, not a correctness requirement.
+fn write_resolved_cache(cfg: &Path, host: &str, ac_id: &str) {
+    let path = resolved_cache_path(cfg);
+    // `{:?}` quotes/escapes like a TOML basic string; host + ac_id never carry
+    // exotic characters, so this round-trips through `ConfigFile`.
+    let body = format!("host = {host:?}\nac_id = {ac_id:?}\n");
+    if fs::write(&path, body).is_err() {
+        return;
+    }
+    // Match the rendered config's 0600 — the cache lives beside it in tmpfs.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+}
+
+/// Read back a cache written by [`write_resolved_cache`]. Returns `Some` only
+/// when the file parses and both fields are present.
+fn read_resolved_cache(cfg: &Path) -> Option<(String, String)> {
+    let text = fs::read_to_string(resolved_cache_path(cfg)).ok()?;
+    let parsed: ConfigFile = basic_toml::from_str(&text).ok()?;
+    Some((parsed.host?, parsed.ac_id?))
+}
+
+/// Fold the login-time resolved cache (host + ac_id) into `s` when present —
+/// lower priority than explicit cli/config values, higher than profile or
+/// discovery. This is what lets `status` and `logout` run *while online*: by
+/// then the captive redirect that discovery needs is gone, so the cached pair
+/// is the only way to reach the portal. No-op without `--config` or a cache.
+fn apply_resolved_cache(cli: &Cli, s: &mut Settings) {
+    let Some(cfg) = cli.config.as_deref() else {
+        return;
+    };
+    let Some((host, ac_id)) = read_resolved_cache(cfg) else {
+        return;
+    };
+    s.host = s.host.take().or(Some(host));
+    s.ac_id = s.ac_id.take().or(Some(ac_id));
 }
 
 fn cmd_discover(cli: &Cli) -> Result<()> {
@@ -470,25 +546,51 @@ fn cmd_login(
     let mut s = resolve(cli)?;
     prompt_credentials(&mut s)?;
 
-    let r = resolve_target(&s)?;
-    let client = Client::new(r.endpoints, s.timeout);
-    let creds = Credentials {
-        username: &s.username,
-        password: &s.password,
+    // Discovery-first so a normal (offline) login always picks the
+    // segment-fresh ac_id. Only when that fails — which is precisely the
+    // "re-login while still online" case (procd respawning us after a keepalive
+    // blip, with the portal session still valid) — fall back to the target
+    // cached at the previous successful login. The fallback never fires on a
+    // genuine offline login, so a roaming client still re-discovers fresh.
+    let r = match resolve_target(&s, true) {
+        Ok(r) => r,
+        Err(e) => {
+            apply_resolved_cache(cli, &mut s);
+            resolve_target(&s, true).map_err(|_| e)?
+        }
     };
+    // Record the resolved target so `status` / `logout` can reuse it once we're
+    // online (the captive redirect is gone after auth). Best-effort.
+    if let Some(cfg) = cli.config.as_deref() {
+        write_resolved_cache(cfg, &r.host, &r.ac_id);
+    }
+    let client = Client::new(r.endpoints, s.timeout);
 
-    client
-        .login(&creds, &r.ac_id, &s.ip)
-        .context("login failed")?;
-    info!("login: ok");
+    // Idempotent: if the portal already considers us online (the session
+    // outlived the keepalive blip that made procd respawn us), don't re-submit
+    // credentials — some deployments reject a duplicate login, which would turn
+    // a recoverable blip into a respawn storm. Resume keepalive directly. A
+    // failed status probe falls through to a normal login attempt.
+    if client.status(&r.ac_id).is_ok_and(|st| st.online) {
+        info!("already online; skipping login");
+    } else {
+        let creds = Credentials {
+            username: &s.username,
+            password: &s.password,
+        };
+        client
+            .login(&creds, &r.ac_id, &s.ip)
+            .context("login failed")?;
+        info!("login: ok");
 
-    // Best-effort confirmation summary: re-query status and show "logged in
-    // as <user> (IP <ip>)". Skipped under --json (which would expect machine
-    // output from login) and under --daemonize (an extra HTTP round-trip on
-    // every keepalive cycle is wasteful). Errors here don't fail login.
-    if !cli.json && !s.daemonize {
-        if let Ok(st) = client.status(&r.ac_id) {
-            print_login_confirmation(&st);
+        // Best-effort confirmation summary: re-query status and show "logged in
+        // as <user> (IP <ip>)". Skipped under --json (which would expect machine
+        // output from login) and under --daemonize (an extra HTTP round-trip on
+        // every keepalive cycle is wasteful). Errors here don't fail login.
+        if !cli.json && !s.daemonize {
+            if let Ok(st) = client.status(&r.ac_id) {
+                print_login_confirmation(&st);
+            }
         }
     }
 
@@ -521,7 +623,11 @@ fn cmd_logout(cli: &Cli) -> Result<()> {
     if s.username.is_empty() {
         bail!("username required");
     }
-    let r = resolve_target(&s)?;
+    // De-auth happens while we're online, when the captive redirect discovery
+    // needs is gone — reuse the ac_id the daemon cached at login so the portal
+    // logout targets the right segment instead of failing to resolve.
+    apply_resolved_cache(cli, &mut s);
+    let r = resolve_target(&s, true)?;
     let client = Client::new(r.endpoints, s.timeout);
     client
         .logout(&s.username, &r.ac_id, &s.ip)
@@ -531,14 +637,21 @@ fn cmd_logout(cli: &Cli) -> Result<()> {
 }
 
 fn cmd_status(cli: &Cli, watch: bool, interval: u64) -> Result<()> {
-    let s = resolve(cli)?;
-    let r = resolve_target(&s)?;
+    let mut s = resolve(cli)?;
+    // Reuse the target the daemon cached at login so `status` keeps reporting
+    // "online" and talks to the portal directly instead of re-probing the
+    // gateway (which can't work once we're authenticated).
+    apply_resolved_cache(cli, &mut s);
+    let r = resolve_target(&s, false)?;
+    // Snapshot the display values before `r.endpoints` is moved into the client.
+    let resolved_host = Some(r.host.clone());
+    let resolved_ac_id = r.display_ac_id();
     let client = Client::new(r.endpoints, s.timeout);
 
     if !watch {
         let mut st = client.status(&r.ac_id).context("status query failed")?;
-        st.resolved_host = Some(r.host.clone());
-        st.resolved_ac_id = Some(r.ac_id.clone());
+        st.resolved_host = resolved_host;
+        st.resolved_ac_id = resolved_ac_id;
         emit_status(&st, cli.json);
         return Ok(());
     }
@@ -552,8 +665,8 @@ fn cmd_status(cli: &Cli, watch: bool, interval: u64) -> Result<()> {
     while !stop.load(Ordering::SeqCst) {
         match client.status(&r.ac_id) {
             Ok(mut st) => {
-                st.resolved_host = Some(r.host.clone());
-                st.resolved_ac_id = Some(r.ac_id.clone());
+                st.resolved_host = resolved_host.clone();
+                st.resolved_ac_id = resolved_ac_id.clone();
                 if !cli.json {
                     anstream::print!("\x1b[2J\x1b[H");
                 }
@@ -788,5 +901,80 @@ fn print_error(e: &anyhow::Error, verbose: u8) {
         // failures (config parse, missing field, …) still carry their
         // detail.
         None => eprintln!("{red}error:{red:#} {e:#}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(host: Option<&str>, ac_id: Option<&str>, profile: Option<&str>) -> Settings {
+        Settings {
+            username: "u".into(),
+            password: "p".into(),
+            host: host.map(str::to_string),
+            insecure: false,
+            ac_id: ac_id.map(str::to_string),
+            ip: String::new(),
+            timeout: Duration::from_secs(2),
+            daemonize: false,
+            profile: profile.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn status_path_tolerates_missing_ac_id() {
+        // Tsinghua pins host only. With require_ac_id=false the host resolves
+        // from the profile, ac_id falls back to the placeholder, and — because
+        // the host is already known — no gateway probe is attempted (so this
+        // test stays hermetic / network-free).
+        let s = settings(None, None, Some("tsinghua"));
+        let r = resolve_target(&s, false).expect("status must not require an ac_id");
+        assert_eq!(r.host, "auth4.tsinghua.edu.cn");
+        assert_eq!(r.ac_id, STATUS_FALLBACK_AC_ID);
+        assert!(r.ac_id_synthetic);
+        assert_eq!(r.display_ac_id(), None);
+    }
+
+    #[test]
+    fn pinned_profile_resolves_both_without_discovery() {
+        // zhejiang pins host + ac_id, so even the strict (login) path needs no
+        // gateway probe.
+        let s = settings(None, None, Some("zhejiang"));
+        let r = resolve_target(&s, true).expect("fully-pinned profile resolves");
+        assert_eq!(r.host, "net.zju.edu.cn");
+        assert_eq!(r.ac_id, "3");
+        assert!(!r.ac_id_synthetic);
+        assert_eq!(r.display_ac_id().as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn explicit_ac_id_is_surfaced_not_synthetic() {
+        let s = settings(Some("portal.example.com"), Some("7"), None);
+        let r = resolve_target(&s, false).expect("explicit host+ac_id resolves");
+        assert_eq!(r.host, "portal.example.com");
+        assert_eq!(r.ac_id, "7");
+        assert!(!r.ac_id_synthetic);
+        assert_eq!(r.display_ac_id().as_deref(), Some("7"));
+    }
+
+    #[test]
+    fn resolved_cache_round_trips() {
+        let mut cfg = std::env::temp_dir();
+        cfg.push(format!("srunc-cache-test-{}.toml", std::process::id()));
+        write_resolved_cache(&cfg, "auth4.tsinghua.edu.cn", "169");
+        let got = read_resolved_cache(&cfg);
+        let _ = fs::remove_file(resolved_cache_path(&cfg));
+        assert_eq!(
+            got,
+            Some(("auth4.tsinghua.edu.cn".to_string(), "169".to_string()))
+        );
+    }
+
+    #[test]
+    fn missing_cache_reads_none() {
+        let cfg = std::env::temp_dir().join("srunc-cache-absent-xyzzy.toml");
+        let _ = fs::remove_file(resolved_cache_path(&cfg));
+        assert_eq!(read_resolved_cache(&cfg), None);
     }
 }
