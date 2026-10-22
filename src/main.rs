@@ -38,7 +38,8 @@ fn cli_styles() -> Styles {
     long_about = "Authenticate against srun-based captive portals. Most \
                   deployments work out of the box via captive-redirect \
                   auto-discovery; use `--profile <id>` or `--host <h>` for \
-                  the rest.",
+                  the rest. On platforms without /proc (macOS / Windows), \
+                  pass `--probe-ip <ip>` so discovery can find the portal.",
     styles = cli_styles()
 )]
 struct Cli {
@@ -68,6 +69,13 @@ struct Cli {
     /// HTTP request timeout, in seconds.
     #[arg(short = 't', long, global = true, value_name = "SECS")]
     timeout: Option<u64>,
+
+    /// IPv4 address to probe for the captive-portal redirect. Defaults to the
+    /// system default gateway (read from /proc/net/route on Linux); set this
+    /// on platforms without /proc (macOS / Windows) or to probe a different
+    /// address (AP / portal controller).
+    #[arg(long, global = true, value_name = "IP")]
+    probe_ip: Option<String>,
 
     // ---- auth scoping ----
     /// Use a specific ac_id (skips auto-discovery).
@@ -137,9 +145,9 @@ enum Cmd {
         #[command(subcommand)]
         action: ProfilesCmd,
     },
-    /// Probe the default gateway for the captive-portal redirect and print
-    /// the host + ac_id it advertises. Backs the "Discover from gateway"
-    /// button in the LuCI Settings view.
+    /// Probe the default gateway (or `--probe-ip`) for the captive-portal
+    /// redirect and print the host + ac_id it advertises. Backs the
+    /// "Discover from gateway" button in the LuCI Settings view.
     Discover,
 }
 
@@ -161,6 +169,7 @@ enum ProfilesCmd {
 struct ConfigFile {
     username: Option<String>,
     password: Option<String>,
+    probe_ip: Option<String>,
     host: Option<String>,
     insecure: bool,
     ac_id: Option<String>,
@@ -174,6 +183,7 @@ struct ConfigFile {
 struct Settings {
     username: String,
     password: String,
+    probe_ip: Option<String>,
     host: Option<String>,
     insecure: bool,
     ac_id: Option<String>,
@@ -219,6 +229,7 @@ fn resolve(cli: &Cli) -> Result<Settings> {
     Ok(Settings {
         username: cli.username.clone().or(cfg.username).unwrap_or_default(),
         password: cli.password.clone().or(cfg.password).unwrap_or_default(),
+        probe_ip: cli.probe_ip.clone().or(cfg.probe_ip),
         host: cli.host.clone().or(cfg.host),
         insecure: cli.insecure || cfg.insecure,
         ac_id: cli.ac_id.clone().or(cfg.ac_id),
@@ -276,6 +287,15 @@ impl Resolved {
 /// this benign placeholder lets the check proceed instead of failing outright.
 const STATUS_FALLBACK_AC_ID: &str = "1";
 
+/// Address to probe for captive-portal discovery. An explicit `--probe-ip` /
+/// config `probe_ip` always wins; otherwise fall back to the platform default
+/// gateway (Linux `/proc/net/route`; `None` on platforms without /proc).
+fn probe_target(s: &Settings) -> Option<String> {
+    s.probe_ip
+        .clone()
+        .or_else(srunc::gateway::default_gateway_v4)
+}
+
 /// Fallback chain: explicit `--host`/`--ac-id` → `--profile` preset →
 /// captive-portal discovery (probe default gateway). `require_ac_id` is set by
 /// the auth paths (login/logout) that genuinely need a segment-correct ac_id;
@@ -299,17 +319,17 @@ fn resolve_target(s: &Settings, require_ac_id: bool) -> Result<Resolved> {
 
     let host_known = s.host.is_some() || profile_host.is_some();
     let ac_id_known = s.ac_id.is_some() || profile_ac_id.is_some();
-    // Only probe the gateway for something we'll actually use: `status` needs
-    // just the host, so it never triggers discovery for a missing ac_id.
+    // Only probe for something we'll actually use: `status` needs just the
+    // host, so it never triggers discovery for a missing ac_id.
     let need_discovery = !host_known || (require_ac_id && !ac_id_known);
     let discovered = if need_discovery {
-        srunc::gateway::default_gateway_v4()
-            .and_then(|gw| {
-                info!("probing gateway {gw} for srun portal hints");
-                match srunc::discover(&gw, s.timeout) {
+        probe_target(s)
+            .and_then(|probe_ip| {
+                info!("probing {probe_ip} for srun portal hints");
+                match srunc::discover(&probe_ip, s.timeout) {
                     Ok(d) => Some(d),
                     Err(e) => {
-                        debug!("gateway probe failed: {e}");
+                        debug!("portal probe failed: {e}");
                         None
                     }
                 }
@@ -326,8 +346,9 @@ fn resolve_target(s: &Settings, require_ac_id: bool) -> Result<Resolved> {
         .or(discovered.host)
         .ok_or_else(|| {
             anyhow!(
-                "could not determine portal host — pass --host, --profile <id>, \
-                 or ensure the default gateway redirects to a captive portal"
+                "could not determine portal host — pass --host or --profile <id>, \
+                 or pass --probe-ip <ip> (or ensure the default route redirects \
+                 to a captive portal)"
             )
         })?;
     let endpoints = Endpoints::from_host(&host, s.insecure);
@@ -338,8 +359,9 @@ fn resolve_target(s: &Settings, require_ac_id: bool) -> Result<Resolved> {
         // status path: proceed with a placeholder (the online check ignores it).
         None if !require_ac_id => (STATUS_FALLBACK_AC_ID.to_string(), true),
         None => bail!(
-            "could not determine ac_id — pass --ac-id, --profile <id>, \
-             or ensure the captive redirect carries an index_<N>.html / ac_id=<N> hint"
+            "could not determine ac_id — pass --ac-id or --profile <id>, \
+             or pass --probe-ip <ip> (or ensure the captive redirect carries \
+             an index_<N>.html / ac_id=<N> hint)"
         ),
     };
 
@@ -404,17 +426,21 @@ fn apply_resolved_cache(cli: &Cli, s: &mut Settings) {
 
 fn cmd_discover(cli: &Cli) -> Result<()> {
     // Settings resolution gives us the timeout the user has configured —
-    // discovery shouldn't hang the LuCI page if the gateway is unreachable.
+    // discovery shouldn't hang the LuCI page if the probe target is unreachable.
     let s = resolve(cli)?;
-    let gateway =
-        srunc::gateway::default_gateway_v4().ok_or_else(|| anyhow!("no default IPv4 gateway"))?;
-    let d = srunc::discover(&gateway, s.timeout).context("gateway probe failed")?;
+    let probe_ip = probe_target(&s).ok_or_else(|| {
+        anyhow!(
+            "no probe target — pass --probe-ip <ip> or set `probe_ip` in the \
+             config (Linux reads the default gateway from /proc/net/route)"
+        )
+    })?;
+    let d = srunc::discover(&probe_ip, s.timeout).context("portal probe failed")?;
 
     if cli.json {
         // Emit the same shape regardless of partial results so JS callers
         // (the LuCI Discover button) can always read both keys.
         let payload = serde_json::json!({
-            "gateway": gateway,
+            "probe_ip": probe_ip,
             "host": d.host,
             "ac_id": d.ac_id,
         });
@@ -426,9 +452,9 @@ fn cmd_discover(cli: &Cli) -> Result<()> {
     use anstyle::Style;
     let dim = Style::new().dimmed();
     let bold = Style::new().bold();
-    println!("{dim}gateway{dim:#}  {bold}{}{bold:#}", gateway);
+    println!("{dim}probe_ip{dim:#}  {bold}{}{bold:#}", probe_ip);
     println!(
-        "{dim}host{dim:#}     {bold}{}{bold:#}",
+        "{dim}host{dim:#}      {bold}{}{bold:#}",
         d.host.as_deref().unwrap_or("(not found)")
     );
     println!(
@@ -912,6 +938,7 @@ mod tests {
         Settings {
             username: "u".into(),
             password: "p".into(),
+            probe_ip: None,
             host: host.map(str::to_string),
             insecure: false,
             ac_id: ac_id.map(str::to_string),
@@ -920,6 +947,16 @@ mod tests {
             daemonize: false,
             profile: profile.map(str::to_string),
         }
+    }
+
+    #[test]
+    fn explicit_probe_ip_wins_over_default_route() {
+        // `--probe-ip` / config `probe_ip` is what makes discovery work on
+        // platforms with no /proc: it must be used even when the host can also
+        // read a default route (Linux).
+        let mut s = settings(None, None, None);
+        s.probe_ip = Some("192.0.2.1".into());
+        assert_eq!(probe_target(&s).as_deref(), Some("192.0.2.1"));
     }
 
     #[test]

@@ -15,6 +15,10 @@ password = "your-password"
 # All of the below are optional — most users only need username + password.
 
 # profile = ""          # built-in (host, ac_id) preset; `srunc profiles list`
+# probe_ip = ""         # IPv4 address to probe for the captive redirect,
+#                       # usually the gateway (Linux reads the default gateway
+#                       # from /proc/net/route; set this on macOS / Windows or
+#                       # to probe a different address)
 # host = ""             # override portal hostname (auto-discovered if blank)
 # ac_id = ""            # override ac_id (auto-discovered if blank)
 # insecure = false      # use http:// instead of https://

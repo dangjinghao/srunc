@@ -19,7 +19,7 @@ src/
 ├── client.rs          ureq-based HTTP client
 ├── endpoints.rs       per-host URL set (generic over deployment)
 ├── discover.rs        captive-redirect parsing → {host, ac_id}, DNS-free
-├── gateway.rs         default-gateway IP via /proc/net/route
+├── gateway.rs         default-gateway IP via /proc/net/route (Linux fallback)
 ├── models.rs          typed serde responses
 ├── jsonp.rs           strip `callback(...)` JSONP wrappers
 └── profiles.rs        built-in {host, ac_id} for known srun deployments
@@ -39,13 +39,14 @@ Library users opt out of the binary's deps with `cargo add srunc --no-default-fe
 - **Typed portal errors.** `PortalError::from_code` returns `WrongPassword` / `AlreadyOnline` / … instead of string compares.
 - **Sync I/O via `ureq` + `rustls`, no tokio** — one keep-alive timer doesn't justify an async runtime.
 - **Zero deployment-specific code paths.** `discover` derives `(host, ac_id)` from the captive redirect; `profiles` is a tiny built-in lookup for the rare cases where discovery misses.
+- **Probe IP override on non-Linux platforms.** `--probe-ip` / `probe_ip = ...` supplies the probe target directly; reading the default gateway from `/proc/net/route` is only the Linux fallback, so captive-redirect discovery also works on macOS / Windows.
 
 ## Build / test
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
-cargo test --locked --all-targets        # 49 tests (5 vectors + 27 unit + 7 + 10 integration)
+cargo test --locked --all-targets        # 65 tests (5 vectors + 38 unit + 12 CLI + 10 portal)
 cargo build --release --locked           # ~2.3 MB at target/release/srunc
 cargo build --locked --no-default-features  # library-only (proves no CLI dep leakage)
 ```

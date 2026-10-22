@@ -1,11 +1,15 @@
-//! Default-route discovery via `/proc/net/route` (Linux).
+//! Default-route discovery via `/proc/net/route` (Linux fallback).
 //!
-//! Returns `None` on non-Linux platforms or any parse failure — callers fall
-//! back to whatever explicit config is available. We deliberately don't pull
-//! in a cross-platform crate (`netdev` etc.) because srunc's auto-discovery
-//! is really only useful on headless routers where DNS doesn't work pre-auth;
-//! macOS/Windows users have working pre-auth DNS via their OS's captive-portal
-//! flow and never exercise this code path.
+//! Returns `None` on non-Linux platforms or any parse failure. Callers can
+//! instead supply the probe address explicitly via `--probe-ip` / the config
+//! `probe_ip` field, which is how captive-redirect discovery works on
+//! platforms without /proc (macOS, Windows).
+//!
+//! We deliberately don't pull in a cross-platform crate (`netdev` etc.):
+//! reading the route automatically matters mainly on headless routers where
+//! DNS doesn't work pre-auth, and the explicit override lets non-Linux hosts
+//! reuse the discovery flow without adding another dependency to the router
+//! binary.
 //!
 //! `/proc/net/route` columns (whitespace-separated):
 //!   Iface  Destination  Gateway  Flags  RefCnt  Use  Metric  Mask  MTU  Window  IRTT

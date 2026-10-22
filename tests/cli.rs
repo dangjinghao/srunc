@@ -38,7 +38,8 @@ fn help_exits_zero_and_lists_subcommands() {
         .stdout(predicate::str::contains("login"))
         .stdout(predicate::str::contains("logout"))
         .stdout(predicate::str::contains("status"))
-        .stdout(predicate::str::contains("profiles"));
+        .stdout(predicate::str::contains("profiles"))
+        .stdout(predicate::str::contains("discover"));
 }
 
 #[test]
@@ -85,6 +86,83 @@ fn unknown_field_in_config_is_rejected() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("unknown"));
+}
+
+// ---------------- probe-ip override ----------------
+
+fn mock_gateway_redirect(server: &MockServer, href: &str) {
+    server.mock(|when, then| {
+        when.method(GET).path("/");
+        then.status(200).body(format!(
+            r#"<html>
+<head>
+<script type="text/javascript">location.href="{href}"</script>
+</head>
+<body>
+</body>
+</html>"#
+        ));
+    });
+}
+
+#[test]
+fn discover_json_uses_probe_ip_from_config() {
+    let server = MockServer::start();
+    let probe_ip = server.address().to_string();
+    mock_gateway_redirect(
+        &server,
+        "http://10.42.0.16/index_169.html?wlanuserip=10.42.42.16&ssid=THUNET",
+    );
+    let cfg = write_temp_config(&format!("probe_ip = \"{probe_ip}\"\n"));
+
+    let out = srunc()
+        .args(["-c", cfg.path().to_str().unwrap(), "--json", "discover"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|e| panic!("not valid JSON: {e}\nstdout was: {stdout:?}"));
+    assert_eq!(parsed["probe_ip"], probe_ip);
+    assert_eq!(parsed["host"], "10.42.0.16");
+    assert_eq!(parsed["ac_id"], "169");
+}
+
+#[test]
+fn cli_probe_ip_overrides_config_and_default_route() {
+    let server = MockServer::start();
+    let probe_ip = server.address().to_string();
+    mock_gateway_redirect(
+        &server,
+        "http://10.42.0.16/index_16.html?wlanuserip=10.42.42.16&ssid=THUNET",
+    );
+
+    let cfg = write_temp_config("probe_ip = \"192.0.2.1\"\n");
+
+    let out = srunc()
+        .args([
+            "-c",
+            cfg.path().to_str().unwrap(),
+            "--probe-ip",
+            &probe_ip,
+            "--timeout",
+            "1",
+            "--json",
+            "discover",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|e| panic!("not valid JSON: {e}\nstdout was: {stdout:?}"));
+    assert_eq!(parsed["probe_ip"], probe_ip);
+    assert_eq!(parsed["host"], "10.42.0.16");
+    assert_eq!(parsed["ac_id"], "16");
 }
 
 // ---------------- end-to-end against a mock portal ----------------

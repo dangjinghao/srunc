@@ -27,8 +27,9 @@ pub struct Discovered {
 /// Probe `http://<probe_target>/` and parse the srun redirect it returns.
 ///
 /// `probe_target` should be reachable WITHOUT DNS (i.e. an IP, typically the
-/// default IPv4 gateway from [`crate::gateway::default_gateway_v4`]), so this
-/// works pre-auth on routers where DNS is broken.
+/// default IPv4 gateway from [`crate::gateway::default_gateway_v4`], or an
+/// explicit `--probe-ip` value on platforms where that lookup is unavailable),
+/// so this works pre-auth on routers where DNS is broken.
 pub fn discover(probe_target: &str, timeout: Duration) -> Result<Discovered, Error> {
     let agent = AgentBuilder::new().timeout(timeout).build();
     let probe_url = format!("http://{probe_target}/");
